@@ -57,7 +57,7 @@
 
 - [ ] T011 [US1] In AudioHandler branch on settings.transcriptionBackend: call local ASR when "local", API when "api"; use response.text for existing vault/editor path in src/AudioHandler.ts
 - [ ] T012 [US1] When local backend is selected, show "Whisper(Local) Idle / Recording / Processing" in src/StatusBar.ts
-- [ ] T013 [US1] Before running local transcription, detect environment capability (Worker, WASM/ONNX); if unsupported show Obsidian Notice with short message, offer "Use cloud instead?", log technical detail to console in src/localAsr/index.ts or src/AudioHandler.ts
+- [ ] T013 [US1] Before running local transcription, detect environment capability (Worker, WASM/ONNX); if unsupported show Obsidian Notice with short message, offer "Use cloud instead?", log technical detail to console in src/localAsr/index.ts or src/AudioHandler.ts (this implementation satisfies FR-013 and US2 acceptance scenario 4; no separate implementation needed in Phase 4)
 
 **Checkpoint**: User Story 1 is fully functional (T011–T013); user can transcribe locally and see status; capability failure shows Notice and cloud option.
 
@@ -72,9 +72,9 @@
 ### Implementation for User Story 2
 
 - [ ] T014 [US2] Ensure settings form shows only options for selected backend and display selected local model id and max recommended duration from registry when local backend is selected in src/WhisperSettingsTab.ts
-- [ ] T015 [US2] When capability check fails, ensure "Use cloud instead?" is offered for this transcription and technical detail is logged to console only (no API keys or stack traces in Notice) in src/AudioHandler.ts or src/localAsr/index.ts
+- [ ] T015 [US2] Verify capability-check failure path from T013 satisfies US2: when local backend is selected and environment cannot run it, confirm Notice with short message, "Use cloud instead?" option, and technical detail in console only (no API keys or stack traces in Notice); no new implementation—T013 is the single implementation
 
-**Checkpoint**: User can switch backends and see correct options; capability failure path offers cloud and logs to console.
+**Checkpoint**: User can switch backends and see correct options; capability failure path (from T013) verified for US2.
 
 ---
 
@@ -95,9 +95,9 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-**Purpose**: Validation and cleanup
+**Purpose**: Validation and cleanup. Manual verification in Obsidian (T018) includes SC-002: confirm plugin bundle size and packaging remain acceptable for a single Obsidian plugin.
 
-- [ ] T018 [P] Run quickstart.md validation (manual verification in Obsidian per constitution) per specs/001-transformers-js-asr-dropin/quickstart.md
+- [ ] T018 [P] Run quickstart.md validation (manual verification in Obsidian per constitution), including bundle size and packaging acceptability (SC-002), per specs/001-transformers-js-asr-dropin/quickstart.md
 - [ ] T019 Code cleanup and any cross-cutting documentation updates in specs/001-transformers-js-asr-dropin/ or project README as needed
 
 ---

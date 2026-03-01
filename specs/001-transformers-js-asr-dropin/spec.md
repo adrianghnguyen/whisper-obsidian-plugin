@@ -87,8 +87,8 @@ The first time a user runs transcription with the in-browser backend, any requir
 - **FR-013**: When the environment cannot run the in-browser backend (e.g. missing or unsupported capabilities), the plugin MUST show a clear message via Obsidian Notice, MUST offer the user the option to use the API backend for this transcription (e.g. “Use cloud instead?”), and MUST log a message to the browser console (e.g. console.error or console.warn with technical detail). Notice content MUST be short and user-safe; no API keys, stack traces, or sensitive details in the Notice; details only in console.
 - **FR-009**: The in-browser backend MUST ship with a small default model bundled in the plugin so it works offline from first use; users MUST be able to download and use other models if they want. "Small" is defined for packaging by a named default (e.g. whisper-tiny.en) and/or a size bound (e.g. &lt;50 MB) so the plugin bundle remains acceptable per SC-002.
 - **FR-010**: The existing API backend MUST remain available and selectable; in-browser is an additional option only.
-- **FR-011**: No existing plugin code MUST be modified. The new local backend is implemented as new code extensions only. The setting for backend choice effectively swaps which transcription endpoint is used (cloud or local); the audio recording pipeline (recording, upload, Blob → AudioHandler) remains exactly as it is today.
-- **FR-012**: Changes for this feature are limited to (1) under-the-hood addition of the local transcription path that returns the same response contract as the cloud endpoint, and (2) GUI changes (e.g. settings) to select the backend and show backend-specific options. No edits to existing pipeline or handler logic.
+- **FR-011**: No existing plugin code MUST be modified except minimal wiring and GUI per FR-012.
+- **FR-012**: Changes for this feature are limited to (1) under-the-hood addition of the local transcription path that returns the same response contract as the cloud endpoint, and (2) GUI changes (e.g. settings) to select the backend and show backend-specific options. The new local backend is implemented as new code extensions only; the setting for backend choice swaps which transcription endpoint is used (cloud or local); the audio recording pipeline (recording, upload, Blob → AudioHandler) and existing pipeline or handler logic are not edited.
 
 ### Key Entities
 
@@ -101,7 +101,7 @@ The first time a user runs transcription with the in-browser backend, any requir
 ### Measurable Outcomes
 
 - **SC-001**: Users who select the in-browser backend can complete a full record-or-upload-to-note flow without entering an API key or sending audio to a server.
-- **SC-002**: Plugin bundle size and packaging complexity remain acceptable for a single Obsidian plugin (no separate server or multi-step install beyond the plugin).
+- **SC-002**: Plugin bundle size and packaging complexity remain acceptable for a single Obsidian plugin (no separate server or multi-step install beyond the plugin). Acceptability is defined solely by Phase 6 manual verification in Obsidian and the default model size bound in FR-009; no other numeric bundle-size criterion is required.
 - **SC-003**: Users can switch between API and in-browser backends in settings and get correct, predictable behaviour for each without breaking the other.
 - **SC-004**: In-browser transcription runs without freezing the app; status reflects Recording and Processing so users understand what is happening.
 - **SC-005**: First-time use of the in-browser backend sets clear expectations (e.g. one-time preparation); subsequent runs start transcription without repeating full setup when possible.

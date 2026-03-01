@@ -27,6 +27,10 @@ Implement an optional in-browser ASR backend using Transformers.js so users can 
 5. **Capability check**: Before running local transcription, detect if environment supports the local backend; if not, show Notice, offer “Use cloud instead?”, log detail to console.
 6. **First-run**: When local model is used for the first time, show progress/notice for model preparation; subsequent runs reuse cached model.
 
+## Validation (manual)
+
+- Verify in Obsidian: local backend flow, status bar, capability fallback, first-run and repeat-run behaviour. Confirm plugin bundle and packaging remain acceptable for a single Obsidian plugin (SC-002).
+
 ## Key constraints
 
 - No edits to existing pipeline or handler logic except minimal wiring and backend branch.

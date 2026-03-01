@@ -12,7 +12,7 @@ Add an optional in-browser ASR backend using Transformers.js so users can transc
 ## Technical Context
 
 **Language/Version**: TypeScript (as in repo; esbuild bundle)  
-**Primary Dependencies**: Obsidian plugin API, esbuild, axios; for this feature add Transformers.js (e.g. @xenova/transformers) for in-browser ASR  
+**Primary Dependencies**: Obsidian plugin API, esbuild, axios; for this feature add **@huggingface/transformers** (Transformers.js) for in-browser ASR (see [research.md](research.md)).  
 **Storage**: Obsidian plugin scope only — `plugin.loadData()` / `plugin.saveData()` for settings; no separate DB  
 **Testing**: Manual verification in Obsidian before release (constitution); no automated test suite required  
 **Target Platform**: Obsidian desktop and mobile (Electron; minAppVersion as in manifest)  
