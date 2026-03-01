@@ -25,7 +25,7 @@
 
 ## 3. Default model and optional models
 
-**Decision**: Ship a **small default model** (e.g. Xenova/whisper-tiny.en or similar quantized model) so the plugin works offline from first use. Store a **model identifier** in settings; allow users to **choose other models** (e.g. from a list or URL) that are downloaded on demand. Display **max recommended duration** per model in settings (e.g. from a small registry or model metadata).
+**Decision**: Ship a **small default model** (e.g. Xenova/whisper-tiny.en or similar quantized model) **bundled in plugin assets** so the plugin works offline from first use (no first-time download). "Small" is defined by a named model id and/or size bound (e.g. &lt;50 MB) to keep the plugin bundle acceptable (SC-002). Store a **model identifier** in settings; allow users to **choose other models** (e.g. from a list or URL) that are downloaded on demand. Display **max recommended duration** per model in settings (e.g. from a small registry or model metadata).
 
 **Rationale**: Spec requires “small default model bundled” and “users can download and use other models.” Whisper-style models have ~30 s chunk limits; per-model max duration in settings satisfies the requirement to “list the max recommended duration for the selected local model.”
 

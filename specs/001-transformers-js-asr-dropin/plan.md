@@ -71,7 +71,7 @@ src/
 └── ...
 ```
 
-**Structure Decision**: Single Obsidian plugin codebase. New behaviour lives under `src/localAsr/` (or equivalent) and is invoked from `AudioHandler` when backend is local. No new top-level apps or backends.
+**Structure Decision**: Single Obsidian plugin codebase. New behaviour lives under `src/localAsr/` (or equivalent) and is invoked from `AudioHandler` when backend is local. No new top-level apps or backends. The **default ASR model** (e.g. whisper-tiny.en) is **bundled in plugin assets** so the plugin works offline from first use; optional models are downloaded on demand (see research.md and FR-009).
 
 ## Complexity Tracking
 
