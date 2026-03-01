@@ -1,0 +1,14 @@
+---
+description: Delegate spec-kit commands to a subagent with bounded context to limit spillover.
+alwaysApply: true
+---
+
+# Spec-kit subagent delegation
+
+When the user invokes any **spec-kit command** (e.g. `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.clarify`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.implement`, `/speckit.constitution`), you **MUST**:
+
+1. **Delegate** the work to a subagent via `mcp_task`. Do **not** execute the full command steps in the current (main) agent context.
+2. **Capture** the command name (e.g. `speckit.plan`) and the user's arguments from the invocation.
+3. **Follow** the project skill **speckit-subagent** for the exact delegation steps, prompt structure, and context boundary. Do not duplicate the command instructions in this rule; the skill tells you how to pass the relevant command file and scope to the subagent.
+
+This keeps spec-kit workflows running with limited context (`.specify/`, `specs/`, and the command file only) and avoids pulling the rest of the codebase into spec-driven phases.
