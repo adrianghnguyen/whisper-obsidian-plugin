@@ -40,7 +40,7 @@ flowchart TB
 - **Whisper** ([main.ts](main.ts)) – Holds `settings: WhisperSettings`, `settingsManager`, `timer`, `recorder`, `audioHandler`, optional `controls`, `statusBar`. In `onload()`: loads settings, adds ribbon (opens Controls), settings tab, timer, AudioHandler, NativeAudioRecorder, StatusBar, and commands (start/stop recording, upload file).
 - **SettingsManager** ([src/SettingsManager.ts](src/SettingsManager.ts)) – Loads/saves `WhisperSettings` via `plugin.loadData()` / `plugin.saveData()`. Defines `WhisperSettings` (API key/URL, model, prompt, language, save-audio/new-file toggles and paths, debug) and `DEFAULT_SETTINGS`.
 - **WhisperSettingsTab** ([src/WhisperSettingsTab.ts](src/WhisperSettingsTab.ts)) – Obsidian `PluginSettingTab`. Uses plugin's `settingsManager`; in `display()` builds the settings UI and writes into `plugin.settings` then saves via `settingsManager.saveSettings()`.
-- **Timer** ([src/Timer.ts](src/Timer.ts)) – Stateless elapsed-time counter (1s interval), `start()` / `pause()` / `reset()`, `getFormattedTime()`, optional `onUpdate` callback.
+- **Timer** ([src/Timer.ts](src/Timer.ts)) – Stateless elapsed-time counter (1s interval), `start()` / `pause()` / `reset()`, `getFormattedTime()`, optional `onUpdate` callback. Note: `pause()` toggles (stops interval if running, starts it if stopped; effectively pause/resume).
 - **StatusBar** ([src/StatusBar.ts](src/StatusBar.ts)) – Single status bar item; shows `RecordingStatus` (Idle / Recording / Processing) and updates text/color.
 - **Controls** ([src/Controls.ts](src/Controls.ts)) – Obsidian `Modal`. Holds Start/Pause/Stop buttons and timer display; wires button clicks to `recorder` and `audioHandler`, and uses `plugin.timer` with `setOnUpdate()` to refresh the display. Created lazily when the ribbon is clicked; closed in `onunload`.
 
@@ -109,6 +109,45 @@ No queues or background workers; recording and upload both run the same synchron
 | [src/SettingsManager.ts](src/SettingsManager.ts)       | WhisperSettings type, defaults, load/save                          |
 | [src/WhisperSettingsTab.ts](src/WhisperSettingsTab.ts) | Settings tab UI bound to plugin.settings                           |
 | [src/utils.ts](src/utils.ts)                           | getBaseFileName (path + extension stripped)                       |
+
+---
+
+## External interfaces and behaviours
+
+Reference for planning changes (e.g. local ASR): public APIs, types, and key behaviours. File paths below point to the implementing module.
+
+### Types and enums
+
+- **WhisperSettings** ([src/SettingsManager.ts](src/SettingsManager.ts)) – `apiKey`, `apiUrl`, `model`, `prompt`, `language`, `saveAudioFile`, `saveAudioFilePath`, `debugMode`, `createNewFileAfterRecording`, `createNewFileAfterRecordingPath`. Defaults in `DEFAULT_SETTINGS` (same file).
+- **RecordingStatus** ([src/StatusBar.ts](src/StatusBar.ts)) – Enum: `Idle`, `Recording`, `Processing`. Used by StatusBar, Controls, and main.ts command for UI and flow control.
+
+### Classes (constructor, public methods, behaviour)
+
+- **Whisper** ([main.ts](main.ts)) – No public API beyond Obsidian `Plugin`. Owned fields: `settings`, `settingsManager`, `timer`, `recorder`, `audioHandler`, `controls` (nullable), `statusBar`. Lifecycle: `onload()` loads settings, creates components, adds ribbon, setting tab, commands; `onunload()` closes controls (if any), removes status bar.
+- **SettingsManager** ([src/SettingsManager.ts](src/SettingsManager.ts)) – `constructor(plugin: Plugin)`. `loadSettings(): Promise<WhisperSettings>` (merge `DEFAULT_SETTINGS` with `plugin.loadData()`). `saveSettings(settings: WhisperSettings): Promise<void>` (calls `plugin.saveData`). No UI.
+- **WhisperSettingsTab** ([src/WhisperSettingsTab.ts](src/WhisperSettingsTab.ts)) – `constructor(app: App, plugin: Whisper)`. `display(): void` rebuilds the full settings UI, reads/writes `plugin.settings`, saves via `settingsManager.saveSettings()`. Setting groups: API Key, API URL, Model, Prompt, Language, Save recording (toggle + “Recordings folder” path), Save transcription (toggle + “Transcriptions folder” path), Debug Mode. Path inputs are text fields; `getUniqueFolders()` used internally for folder list.
+- **Timer** ([src/Timer.ts](src/Timer.ts)) – No constructor args. `setOnUpdate(callback: () => void)`, `start()`, `pause()`, `reset()`, `getFormattedTime(): string`. Behaviour: `elapsedTime` in ms; 1s interval; `pause()` toggles (stops interval if running, starts it if stopped); `reset()` clears time and interval and invokes `onUpdate`.
+- **StatusBar** ([src/StatusBar.ts](src/StatusBar.ts)) – `constructor(plugin: Plugin)`. Adds one status bar item in constructor. `updateStatus(status: RecordingStatus)` sets `this.status` and refreshes DOM. `remove()` removes the item. Display: Idle = “Whisper Idle” (green); Recording = “Recording...” (red); Processing = “Processing audio...” (orange).
+- **Controls** ([src/Controls.ts](src/Controls.ts)) – `constructor(plugin: Whisper)`. Extends Obsidian `Modal`; `open()` / `close()` from base. No other public methods; internal handlers: startRecording, pauseRecording, stopRecording, updateTimerDisplay, resetGUI. Behaviour: Start/Pause/Stop wired to recorder, timer, statusBar; on Stop → get blob, reset timer, call `audioHandler.sendAudioData(blob, fileName)`, then close modal. Buttons disabled by recorder state (start disabled when recording/paused; pause/stop disabled when inactive). Timer display updated via `plugin.timer.setOnUpdate()`.
+- **AudioRecorder** ([src/AudioRecorder.ts](src/AudioRecorder.ts)) – Interface: `startRecording(): Promise<void>`, `pauseRecording(): Promise<void>`, `stopRecording(): Promise<Blob>`.
+- **NativeAudioRecorder** ([src/AudioRecorder.ts](src/AudioRecorder.ts)) – Implements `AudioRecorder`. Additional: `getRecordingState(): "inactive" | "recording" | "paused" | undefined`, `getMimeType(): string | undefined`. Behaviour: first `startRecording()` calls `getUserMedia`, picks first supported MIME among webm/ogg/mp3/mp4, starts MediaRecorder with 100ms timeslice; chunks accumulated; `stopRecording()` returns Blob, clears chunks, stops stream tracks and nulls recorder. Subsequent `startRecording()` is no-op if recorder exists; `pauseRecording()` toggles pause/resume.
+- **AudioHandler** ([src/AudioHandler.ts](src/AudioHandler.ts)) – `constructor(plugin: Whisper)`. `sendAudioData(blob: Blob, fileName: string): Promise<void>`. Behaviour: base name via `getBaseFileName(fileName)`; paths from settings (`saveAudioFilePath`, `createNewFileAfterRecordingPath`). If no `apiKey`, shows Notice and returns. If `saveAudioFile`, writes blob with `vault.adapter.writeBinary(audioFilePath, Uint8Array)`. Builds FormData (file, model, language, optional prompt), POST to `apiUrl` with Bearer token; expects `response.data.text`. If `createNewFileAfterRecording` or no active MarkdownView: creates note with `![[audioFilePath]]` and transcription, opens via `openLinkText`; else inserts at cursor and `setCursor`. Notices on success and on errors.
+
+### Utils
+
+- **getBaseFileName** ([src/utils.ts](src/utils.ts)) – `getBaseFileName(filePath: string): string`. Returns last path segment with extension stripped (by lastIndexOf `/` and `.`).
+
+### Obsidian API usage
+
+How the plugin uses Obsidian’s contracts; keep consistent when adding features (e.g. local backend, workers).
+
+- **Lifecycle** – `onload`: load settings, create components, add ribbon, setting tab, commands. `onunload`: explicit cleanup only — `controls?.close()`, `statusBar.remove()`; no other listeners or UI to detach.
+- **Vault** – `vault.adapter.writeBinary(path, Uint8Array)` for saving audio; `vault.create(path, content)` for new transcription notes. Paths are strings; no `vault.modify` or `TFile` for writes.
+- **Editor** – Only the Obsidian Editor API: `getActiveViewOfType(MarkdownView)` then `view.editor`; `editor.getCursor()`, `editor.replaceRange(text, pos)`, `editor.setCursor(pos)`. No raw CodeMirror (desktop and mobile safe).
+- **Commands** – `addCommand({ id, name, callback, hotkeys })`. Both commands use `callback` (not `editorCallback`); editor obtained inside callback via `getActiveViewOfType(MarkdownView)`. Command ids: `start-stop-recording` (hotkey Alt+Q), `upload-audio-file` (no default hotkey).
+- **Manifest** – Entry is `main.js`. Convention: `id`, `name`, `version`, `minAppVersion`; optionally `description`, `author`, `authorUrl`.
+
+---
 
 This is the high-level architecture: one plugin root, clear ownership of components, and a single audio pipeline (Blob → AudioHandler → API → note) for both recording and file upload.
 

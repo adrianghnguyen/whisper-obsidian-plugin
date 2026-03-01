@@ -1,0 +1,1 @@
+Using a conventional commit style, read the current changes in git, staged or not and proceed with a one liner conventional commit then followed by bulletpoints of details
