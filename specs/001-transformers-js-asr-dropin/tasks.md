@@ -34,7 +34,7 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Define backend interface `transcribe(blob: Blob, fileName?: string): Promise<{ text: string }>` (type or interface) for AudioHandler in src/ or src/localAsr/
+- [ ] T003 Define backend interface `transcribe(blob: Blob, fileName?: string): Promise<{ text: string }>` (type or interface) in src/localAsr/ (e.g. index.ts or types.ts) for AudioHandler to import; both API and local paths implement it (see contracts/backend-interface.md)
 - [ ] T004 Extend WhisperSettings with transcriptionBackend and localModelId and default values in src/SettingsManager.ts (or where DEFAULT_SETTINGS are defined)
 - [ ] T005 Extend WhisperSettingsTab with backend selector (API vs in-browser) and conditional options (hide API key when local; show local model when local) in src/WhisperSettingsTab.ts
 - [ ] T006 [P] Create local model registry (modelId → maxRecommendedDurationSeconds) in src/localAsr/modelRegistry.ts

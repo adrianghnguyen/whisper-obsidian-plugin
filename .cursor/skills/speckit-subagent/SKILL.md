@@ -5,7 +5,7 @@ description: Runs spec-kit workflows in a subagent with bounded context. Use whe
 
 # Spec-kit subagent
 
-Run spec-kit commands in a subagent so only `.specify/`, `specs/`, and the command file are in scope. This limits context spillover.
+Run spec-kit commands in a subagent so only `.specify/`, `specs/`, and the command file are in scope. This limits context spillover. If there are simple unambiguous fixes, make the edits directly.
 
 ## Instructions
 

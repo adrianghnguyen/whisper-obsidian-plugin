@@ -65,9 +65,9 @@ src/
 ├── Timer.ts             # No change
 ├── utils.ts             # No change
 ├── localAsr/            # NEW: local ASR path (Transformers.js, worker, model loading)
-│   ├── index.ts         # or LocalTranscriptionService — (blob) => Promise<{ text }>
-│   ├── worker.ts        # Optional: worker entry for non-blocking run
-│   └── modelRegistry.ts # Optional: model id → config (e.g. max recommended duration)
+│   ├── index.ts         # Entry: (blob) => Promise<{ text }>; exports backend interface type for AudioHandler
+│   ├── worker.ts        # Worker entry for non-blocking run
+│   └── modelRegistry.ts # Model id → config (e.g. max recommended duration)
 └── ...
 ```
 
