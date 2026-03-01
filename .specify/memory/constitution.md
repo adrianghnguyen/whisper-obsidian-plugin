@@ -17,6 +17,11 @@
   Modified: Technical Constraints
   Added: Data contract (pluggable backends same response contract); newer features primarily extensions or wrappers, no modification of existing plugin code except minimal wiring/GUI
   Removed sections: None
+
+  Version change: 1.3.0 → 1.3.1
+  Modified: Development Workflow
+  Added: Plugin must be deployment-ready after features are implemented
+  Removed sections: None
 -->
 
 # Obsidian Whisper Constitution
@@ -57,6 +62,7 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 
 - Architecture, plugin structure, and external interfaces and behaviours are documented in `.specify/memory/whisper-plugin-architecture.md`. When planning changes (e.g. new features, local ASR), plans and PRs SHOULD consult that doc’s interfaces and behaviours to preserve minimal surface area, avoid breaking existing contracts, and keep Obsidian API usage consistent.
 - New features SHOULD be specified via .specify flow: spec → plan → tasks. Constitution Check in the implementation plan MUST pass before Phase 0 research and after Phase 1 design.
+- After features are implemented, the plugin MUST be in a state ready for deployment: build passing, release artifacts valid, version in sync (per Principle IV and V).
 - PRs and reviews SHOULD verify compliance with this constitution. Exceptions (e.g. new dependency, structural change) MUST be justified in the plan (e.g. Complexity Tracking table).
 - Breaking changes (e.g. minAppVersion, config renames, removed features) MUST be documented in CHANGELOG and SHOULD trigger a MAJOR version bump.
 - Use README and .specify documentation for runtime and contribution guidance.
@@ -65,4 +71,4 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 
 This constitution supersedes ad-hoc project practices. Amendments require: (1) updating this file with a version bump per semantic versioning (MAJOR: backward-incompatible principle removal or redefinition; MINOR: new principle or material expansion; PATCH: clarifications, typos), (2) updating LAST_AMENDED_DATE, and (3) documenting the change in the Sync Impact Report at the top of this file. All PRs that touch architecture or principles SHOULD confirm compliance with the constitution.
 
-**Version**: 1.3.0 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
+**Version**: 1.3.1 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
