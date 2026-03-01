@@ -1,7 +1,7 @@
 # Feature Specification: In-browser ASR (Transformers.js) as drop-in backend
 
 **Feature Branch**: `001-transformers-js-asr-dropin`  
-**Created**: 2025-03-01  
+**Created**: 2026-03-01  
 **Status**: Draft  
 **Input**: User description: "I want to be able to use the ASR Transformers.js skill as a drop-in replacement for the existing whisper plugin. It should have a minimal footprint and easy to package into the plugin. It'll need to minimally impact the existing plugin. Ask me for clarifications."
 
@@ -67,7 +67,7 @@ The first time a user runs transcription with the in-browser backend, any requir
 
 ### Edge Cases
 
-- When the environment cannot run the in-browser backend: see **FR-013** (Notice, "Use cloud instead?", console for technical detail).
+- When the environment cannot run the in-browser backend: see **FR-009** (Notice, "Use cloud instead?", console for technical detail).
 - Long audio: the plugin does not enforce a duration limit (same as the existing cloud path). Settings show the max recommended duration for the selected local model so the user can see it; the local backend may chunk internally to produce the same single-text response contract.
 - When model download or preparation is interrupted (e.g. network off, user closes app): the plugin MUST offer retry (e.g. via Notice or status action), MUST NOT leave the UI in a stuck "Loading" or inconsistent state, and MAY log technical detail to the console.
 - If the user has no API key and selects the API backend, existing behaviour (e.g. notice asking for API key) applies; the in-browser backend does not change that.
@@ -80,15 +80,15 @@ The first time a user runs transcription with the in-browser backend, any requir
 - **FR-002**: When the in-browser backend is selected, the plugin MUST produce transcription text from audio (recording or upload) without sending audio to an external API.
 - **FR-003**: The single entry point for transcription (record and upload) MUST remain unchanged; backend selection only affects how audio is turned into text internally.
 - **FR-004**: The in-browser backend MUST provide the exact same response as the cloud endpoint (same output contract: e.g. a single transcription text string) so the same downstream logic (vault/editor) applies to both backends with no branching on backend type.
-- **FR-005**: The plugin MUST keep the main UI responsive during in-browser transcription (e.g. long-running work must not block the main thread).
+- **FR-005**: The plugin MUST keep the main UI responsive during in-browser transcription; long-running work MUST run off the main thread (e.g. Web Worker per plan).
 - **FR-006**: The plugin MUST use the same vault and editor behaviour for in-browser transcription as for the API backend (create new file vs insert at cursor, paths, and related settings).
 - **FR-007**: Settings MUST store the chosen backend and any backend-specific options (e.g. in-browser model identifier); the settings UI MUST show only relevant options for the selected backend. When the in-browser backend is selected, the plugin settings MUST display the local transcription model chosen (e.g. default bundled model or a selected downloaded model) and MUST list the max recommended duration for that model (so the user can see recommended limits per model).
 - **FR-008**: The plugin MUST provide clear user feedback for in-browser transcription state (e.g. Idle / Recording / Processing) and for errors or progress (e.g. model preparation), using the same feedback mechanisms as today (e.g. status bar, Obsidian Notice for toasts). When the in-browser backend is selected, the Obsidian status bar MUST indicate local mode (e.g. "Whisper(Local) Idle", "Whisper(Local) Recording...", "Whisper(Local) Processing...") so the user can see at a glance that the cloud backend is not in use. User-facing messages MUST use Notice with short, safe text only; technical or diagnostic detail MUST be written to the browser console (matching existing plugin behaviour and constitution).
-- **FR-013**: When the environment cannot run the in-browser backend (e.g. missing or unsupported capabilities), the plugin MUST show a clear message via Obsidian Notice (e.g. as in Edge Cases—short, user-safe text such as "Use cloud instead?"), MUST offer the user the option to use the API backend for this transcription (e.g. “Use cloud instead?”), and MUST log a message to the browser console (e.g. console.error or console.warn with technical detail). Notice content MUST be short and user-safe; no API keys, stack traces, or sensitive details in the Notice; details only in console.
-- **FR-009**: The in-browser backend MUST ship with a small default model bundled in the plugin so it works offline from first use; users MUST be able to download and use other models if they want. "Small" is defined for packaging by a named default (e.g. whisper-tiny.en) and/or a size bound (e.g. &lt;50 MB) so the plugin bundle remains acceptable per SC-002.
-- **FR-010**: The existing API backend MUST remain available and selectable; in-browser is an additional option only.
-- **FR-011**: No existing plugin code MUST be modified (per FR-012).
-- **FR-012**: Changes for this feature are limited to (1) under-the-hood addition of the local transcription path that returns the same response contract as the cloud endpoint, and (2) GUI changes (e.g. settings) to select the backend and show backend-specific options. The new local backend is implemented as new code extensions only; the setting for backend choice swaps which transcription endpoint is used (cloud or local); the audio recording pipeline (recording, upload, Blob → AudioHandler) and existing pipeline or handler logic are not edited.
+- **FR-009**: When the environment cannot run the in-browser backend (e.g. missing or unsupported capabilities), the plugin MUST show a clear message via Obsidian Notice (e.g. as in Edge Cases—short, user-safe text such as "Use cloud instead?"), MUST offer the user the option to use the API backend for this transcription (e.g. “Use cloud instead?”), and MUST log a message to the browser console (e.g. console.error or console.warn with technical detail). Notice content MUST be short and user-safe; no API keys, stack traces, or sensitive details in the Notice; details only in console.
+- **FR-010**: The in-browser backend MUST ship with a small default model bundled in the plugin so it works offline from first use; users MUST be able to download and use other models if they want. "Small" is defined for packaging by a named default (e.g. whisper-tiny.en) and/or a size bound (e.g. &lt;50 MB) so the plugin bundle remains acceptable per SC-002.
+- **FR-011**: The existing API backend MUST remain available and selectable; in-browser is an additional option only.
+- **FR-012**: No modification of existing plugin code; see FR-013 for scope of changes.
+- **FR-013**: Changes for this feature are limited to (1) under-the-hood addition of the local transcription path that returns the same response contract as the cloud endpoint, and (2) GUI changes (e.g. settings) to select the backend and show backend-specific options. The new local backend is implemented as new code extensions only; the setting for backend choice swaps which transcription endpoint is used (cloud or local); the audio recording pipeline (recording, upload, Blob → AudioHandler) and existing pipeline or handler logic are not edited.
 
 ### Key Entities
 
@@ -103,7 +103,7 @@ The first time a user runs transcription with the in-browser backend, any requir
 - **SC-001**: Users who select the in-browser backend can complete a full record-or-upload-to-note flow without entering an API key or sending audio to a server.
 - **SC-002**: Plugin bundle size and packaging complexity remain acceptable for a single Obsidian plugin (no separate server or multi-step install beyond the plugin). Acceptability is defined solely by Phase 6 manual verification in Obsidian and the default model size bound in FR-009; no other numeric bundle-size criterion is required.
 - **SC-003**: Users can switch between API and in-browser backends in settings and get correct, predictable behaviour for each without breaking the other.
-- **SC-004**: In-browser transcription runs without freezing the app; status reflects Recording and Processing so users understand what is happening.
+- **SC-004**: In-browser transcription runs without freezing the app (work off main thread); status reflects Recording and Processing so users understand what is happening.
 - **SC-005**: First-time use of the in-browser backend sets clear expectations (e.g. one-time preparation); subsequent runs start transcription without repeating full setup when possible.
 
 ## Assumptions

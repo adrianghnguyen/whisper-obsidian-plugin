@@ -28,7 +28,7 @@ Add an optional in-browser ASR backend using Transformers.js so users can transc
 | Principle | Check | Result |
 |-----------|--------|--------|
 | **I. Obsidian-first** | Feature delivered as plugin capabilities; Obsidian API only; no separate backend or server. | PASS — In-browser ASR runs inside the plugin (Worker or main-thread async); no external server. |
-| **II. User privacy and API safety** | API keys not exposed; user-facing Notice short and safe; technical/diagnostic detail only in console. | PASS — Spec FR-008, FR-013: Notice short/safe; console for detail; no keys or stack traces in Notice. |
+| **II. User privacy and API safety** | API keys not exposed; user-facing Notice short and safe; technical/diagnostic detail only in console. | PASS — Spec FR-008, FR-009: Notice short/safe; console for detail; no keys or stack traces in Notice. |
 | **III. Simplicity and maintainability** | Minimal codebase; extensions/wrappers preferred; minimal changes to existing plugin classes. | PASS — FR-012: New code extensions only; backend selection swaps endpoint; no edits to recording pipeline or handler logic except minimal wiring and GUI. |
 | **IV. Conventional commits and versioning** | Conventional commit syntax; version in sync across manifest, package.json, versions.json, tags. | PASS — No change to release or versioning process. |
 | **V. Quality gates** | Build passes (TypeScript, esbuild); lint/format applied; manual verification in Obsidian before release. | PASS — Same as today. |

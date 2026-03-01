@@ -25,6 +25,7 @@ Run spec-kit commands in a subagent so only `.specify/`, `specs/`, and the comma
        - "Only read and modify files under `.specify/`, `specs/`, and the current feature directory. Do not search or open files under `src/`, `node_modules/`, or other application code."
      - **Context boundary for speckit.implement only**: Use the same primary context, then add: "You may open and edit source files only when implementing a concrete task from tasks.md; keep primary context in specs/ and .specify/."
      - **Key paths** (optional but helpful): "Relevant paths: .specify/memory/constitution.md, .specify/templates/, and the feature spec directory under specs/ (e.g. specs/NNN-<short-name>/)."
+     - **Checklist upkeep**: "When FEATURE_DIR/checklists/requirements.md exists, update it as you go: mark items [x] when your work satisfies them, refresh the Notes section, and run this at natural checkpoints (e.g. after completing a phase or before reporting)."
 
 4. **After the subagent returns**
    - Summarize the result for the user (what was created or updated, paths, branch if applicable).
