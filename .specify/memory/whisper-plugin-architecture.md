@@ -111,3 +111,5 @@ No queues or background workers; recording and upload both run the same synchron
 | [src/utils.ts](src/utils.ts)                           | getBaseFileName (path + extension stripped)                       |
 
 This is the high-level architecture: one plugin root, clear ownership of components, and a single audio pipeline (Blob → AudioHandler → API → note) for both recording and file upload.
+
+For what Obsidian requires from the plugin when adding an optional local transcription backend (contract, settings, vault/editor, no new commands), see [README-transformers-js-asr.md](README-transformers-js-asr.md).
