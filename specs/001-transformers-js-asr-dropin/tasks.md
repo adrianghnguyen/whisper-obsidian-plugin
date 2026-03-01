@@ -23,8 +23,8 @@
 
 **Purpose**: Add dependency and local ASR module structure
 
-- [ ] T001 Create src/localAsr/ directory with index.ts, worker.ts, and modelRegistry.ts per plan.md
-- [ ] T002 [P] Add @huggingface/transformers dependency and ensure build (esbuild) supports worker entry if needed in package.json and build config
+- [X] T001 Create src/localAsr/ directory with index.ts, worker.ts, and modelRegistry.ts per plan.md
+- [X] T002 [P] Add @huggingface/transformers dependency and ensure build (esbuild) supports worker entry if needed in package.json and build config
 
 ---
 
@@ -34,14 +34,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Define backend interface `transcribe(blob: Blob, fileName?: string): Promise<{ text: string }>` (type or interface) in src/localAsr/ (e.g. index.ts or types.ts) for AudioHandler to import; both API and local paths implement it (see contracts/backend-interface.md)
-- [ ] T004 Extend WhisperSettings with transcriptionBackend and localModelId and default values in src/SettingsManager.ts (or where DEFAULT_SETTINGS are defined)
-- [ ] T005 Extend WhisperSettingsTab with backend selector (API vs in-browser) and conditional options (hide API key when local; show local model when local) in src/WhisperSettingsTab.ts
-- [ ] T006 [P] Create local model registry (modelId → maxRecommendedDurationSeconds) in src/localAsr/modelRegistry.ts
-- [ ] T007 [P] Implement local ASR worker: load Transformers.js ASR pipeline, accept blob, return { text } in src/localAsr/worker.ts
-- [ ] T008 Implement local ASR entry: (blob) => Promise<{ text }> delegating to worker with chunking for long audio in src/localAsr/index.ts
-- [ ] T009 Bundle default ASR model (e.g. whisper-tiny.en) in plugin assets for offline-first use and wire it plus model choice from settings in src/localAsr/index.ts and build config (see research.md and FR-009)
-- [ ] T010 Handle interrupted model load: on failure or cancel offer retry (e.g. Notice or status), reset loading state, log technical detail to console; avoid stuck "Loading" in src/localAsr/index.ts (and worker if applicable)
+- [X] T003 Define backend interface `transcribe(blob: Blob, fileName?: string): Promise<{ text: string }>` (type or interface) in src/localAsr/ (e.g. index.ts or types.ts) for AudioHandler to import; both API and local paths implement it (see contracts/backend-interface.md)
+- [X] T004 Extend WhisperSettings with transcriptionBackend and localModelId and default values in src/SettingsManager.ts (or where DEFAULT_SETTINGS are defined)
+- [X] T005 Extend WhisperSettingsTab with backend selector (API vs in-browser) and conditional options (hide API key when local; show local model when local) in src/WhisperSettingsTab.ts
+- [X] T006 [P] Create local model registry (modelId → maxRecommendedDurationSeconds) in src/localAsr/modelRegistry.ts
+- [X] T007 [P] Implement local ASR worker: load Transformers.js ASR pipeline, accept blob, return { text } in src/localAsr/worker.ts
+- [X] T008 Implement local ASR entry: (blob) => Promise<{ text }> delegating to worker with chunking for long audio in src/localAsr/index.ts
+- [X] T009 Bundle default ASR model (e.g. whisper-tiny.en) in plugin assets for offline-first use and wire it plus model choice from settings in src/localAsr/index.ts and build config (see research.md and FR-009)
+- [X] T010 Handle interrupted model load: on failure or cancel offer retry (e.g. Notice or status), reset loading state, log technical detail to console; avoid stuck "Loading" in src/localAsr/index.ts (and worker if applicable)
 
 **Checkpoint**: Foundation ready (including default model bundled and interrupted-load handling) — user story implementation can now begin
 
@@ -55,9 +55,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] In AudioHandler branch on settings.transcriptionBackend: call local ASR when "local", API when "api"; use response.text for existing vault/editor path in src/AudioHandler.ts
-- [ ] T012 [P] [US1] When local backend is selected, show "Whisper(Local) Idle / Recording / Processing" in src/StatusBar.ts
-- [ ] T013 [P] [US1] Before running local transcription, detect environment capability (Worker, WASM/ONNX); if unsupported show Obsidian Notice with short message, offer "Use cloud instead?", log technical detail to console in src/localAsr/index.ts or src/AudioHandler.ts (satisfies FR-009 and US2 scenario 4)
+- [X] T011 [US1] In AudioHandler branch on settings.transcriptionBackend: call local ASR when "local", API when "api"; use response.text for existing vault/editor path in src/AudioHandler.ts
+- [X] T012 [P] [US1] When local backend is selected, show "Whisper(Local) Idle / Recording / Processing" in src/StatusBar.ts
+- [X] T013 [P] [US1] Before running local transcription, detect environment capability (Worker, WASM/ONNX); if unsupported show Obsidian Notice with short message, offer "Use cloud instead?", log technical detail to console in src/localAsr/index.ts or src/AudioHandler.ts (satisfies FR-009 and US2 scenario 4)
 
 **Checkpoint**: User Story 1 is fully functional (T011–T013); user can transcribe locally and see status; capability failure shows Notice and cloud option.
 
@@ -71,8 +71,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Ensure settings form shows only options for selected backend and display selected local model id and max recommended duration from registry when local backend is selected in src/WhisperSettingsTab.ts
-- [ ] T015 [P] [US2] Verify capability-check failure path from T013 satisfies US2: when local backend is selected and environment cannot run it, confirm Notice with short message, "Use cloud instead?" option, and technical detail in console only; no new code (T013 in src/localAsr/index.ts or src/AudioHandler.ts)
+- [X] T014 [P] [US2] Ensure settings form shows only options for selected backend and display selected local model id and max recommended duration from registry when local backend is selected in src/WhisperSettingsTab.ts
+- [X] T015 [P] [US2] Verify capability-check failure path from T013 satisfies US2: when local backend is selected and environment cannot run it, confirm Notice with short message, "Use cloud instead?" option, and technical detail in console only; no new code (T013 in src/localAsr/index.ts or src/AudioHandler.ts)
 
 **Checkpoint**: User can switch backends and see correct options; capability failure path (from T013) verified for US2.
 
@@ -86,8 +86,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] On first-time local model use, show model preparation progress (status bar or Notice) in src/localAsr/index.ts and/or src/StatusBar.ts
-- [ ] T017 [US3] Ensure subsequent transcription runs reuse cached model (no full preparation step) in src/localAsr/index.ts
+- [X] T016 [US3] On first-time local model use, show model preparation progress (status bar or Notice) in src/localAsr/index.ts and/or src/StatusBar.ts
+- [X] T017 [US3] Ensure subsequent transcription runs reuse cached model (no full preparation step) in src/localAsr/index.ts
 
 **Checkpoint**: First-run and repeat-run behaviour matches spec; users see progress on first use and faster startup on reuse.
 
@@ -98,7 +98,7 @@
 **Purpose**: Validation and cleanup. Manual verification in Obsidian (T018) includes SC-002 (bundle size and packaging acceptable) and SC-004/FR-005 (main UI stays responsive, no freezing during local transcription).
 
 - [ ] T018 [P] Run quickstart.md validation (manual verification in Obsidian per constitution), including bundle size and packaging acceptability (SC-002) and main UI responsiveness / no freezing during local transcription (SC-004, FR-005), per specs/001-transformers-js-asr-dropin/quickstart.md
-- [ ] T019 Code cleanup and any cross-cutting documentation updates in specs/001-transformers-js-asr-dropin/ or project README as needed
+- [X] T019 Code cleanup and any cross-cutting documentation updates in specs/001-transformers-js-asr-dropin/ or project README as needed
 
 ---
 

@@ -33,4 +33,4 @@
 
 - Spec aligned with FR renumbering (001–013). FR-009: capability fallback; FR-010: default model; FR-011: API remains; FR-012/013: scope.
 - SC-002 references FR-010 (default model size); SC-004/FR-005 specify work off main thread (verification in T018).
-- Spec is ready for `/speckit.implement`.
+- Implementation complete (T001–T017, T019). T018 requires manual verification in Obsidian (quickstart.md).

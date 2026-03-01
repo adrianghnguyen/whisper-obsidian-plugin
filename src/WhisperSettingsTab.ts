@@ -1,6 +1,11 @@
 import Whisper from "main";
 import { App, PluginSettingTab, Setting, TFolder } from "obsidian";
 import { SettingsManager } from "./SettingsManager";
+import {
+	MODEL_REGISTRY,
+	DEFAULT_LOCAL_MODEL_ID,
+	getMaxRecommendedDuration,
+} from "./localAsr/modelRegistry";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private plugin: Whisper;
@@ -19,9 +24,14 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 		this.createHeader();
-		this.createApiKeySetting();
-		this.createApiUrlSetting();
-		this.createModelSetting();
+		this.createBackendSelector();
+		if (this.plugin.settings.transcriptionBackend === "api") {
+			this.createApiKeySetting();
+			this.createApiUrlSetting();
+			this.createModelSetting();
+		} else {
+			this.createLocalModelSetting();
+		}
 		this.createPromptSetting();
 		this.createLanguageSetting();
 		this.createSaveAudioFileToggleSetting();
@@ -47,6 +57,52 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 	private createHeader(): void {
 		this.containerEl.createEl("h2", { text: "Settings for Whisper." });
+	}
+
+	private createBackendSelector(): void {
+		new Setting(this.containerEl)
+			.setName("Transcription backend")
+			.setDesc(
+				"Choose API (cloud) or in-browser (local) transcription. Local runs entirely in your browser; no API key needed."
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("api", "API (cloud)")
+					.addOption("local", "In-browser (local)")
+					.setValue(this.plugin.settings.transcriptionBackend)
+					.onChange(async (value) => {
+						this.plugin.settings.transcriptionBackend = value as
+							| "api"
+							| "local";
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+						this.display();
+					})
+			);
+	}
+
+	private createLocalModelSetting(): void {
+		const modelId =
+			this.plugin.settings.localModelId || DEFAULT_LOCAL_MODEL_ID;
+		const maxDuration = getMaxRecommendedDuration(modelId);
+		const modelIds = Object.keys(MODEL_REGISTRY);
+
+		new Setting(this.containerEl)
+			.setName("Local model")
+			.setDesc(
+				`Model for in-browser transcription. Max recommended duration: ${maxDuration}s per chunk.`
+			)
+			.addDropdown((dropdown) => {
+				modelIds.forEach((id) => dropdown.addOption(id, id));
+				dropdown.setValue(modelId).onChange(async (value) => {
+					this.plugin.settings.localModelId = value;
+					await this.settingsManager.saveSettings(
+						this.plugin.settings
+					);
+					this.display();
+				});
+			});
 	}
 
 	private createTextSetting(
