@@ -1,50 +1,54 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+  Sync Impact Report
+  Version change: 1.0.0 → 1.1.0
+  Modified principles: II (user-facing errors), IV (release artifacts), V (testing policy)
+  Added: Technical Constraints (release artifacts); Development Workflow (breaking changes)
+  Removed sections: None
+  Templates: plan-template.md ✅; spec-template.md ✅; tasks-template.md ✅;
+    commands/*.md N/A
+  Follow-up TODOs: None
+-->
+
+# Obsidian Whisper Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Obsidian-first
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+All features MUST be delivered as Obsidian plugin capabilities: commands, settings, ribbon/UI, and vault file operations. The plugin MUST use the official Obsidian API and MUST NOT require a separate backend or server. Rationale: the product is a community plugin; compatibility and UX are defined by Obsidian.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. User privacy and API safety
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+API keys MUST be stored and used in a way that avoids exposure (e.g. settings only in plugin scope, no logging of keys). Audio and transcriptions MUST be handled according to user-controlled options (e.g. save recording, save transcription). External API usage (e.g. OpenAI Whisper) MUST be documented and configurable (API URL, model). User-visible messages (e.g. Notice) MUST NOT include API keys, stack traces, or other sensitive or technical details; use short, safe messages and log details only to console or dev tools. Rationale: trust and safety for vault content and credentials.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Simplicity and maintainability
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+The codebase MUST stay minimal: TypeScript, single plugin bundle, minimal dependencies. YAGNI applies; new dependencies or architectural complexity MUST be justified. Rationale: easier maintenance and upgrades for a small team and community.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Conventional commits and versioning
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+All commit messages MUST follow conventional commit syntax. Release version MUST be kept in sync across manifest.json, package.json, versions.json (if present), and git tags. Release artifacts are main.js, manifest.json, and styles.css; this asset list and version sync MUST be maintained as in the release script (e.g. verify-and-update.mjs). Rationale: consistent history, changelogs, and release automation.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Quality gates
+
+Before release, the build MUST pass (TypeScript check and esbuild bundle). Linting and formatting (e.g. ESLint, Prettier) MUST be applied. Automated tests are not required; manual verification in Obsidian before release is required. Rationale: stable releases and consistent code style.
+
+## Technical Constraints
+
+- **Stack**: TypeScript; Obsidian plugin API; esbuild for bundling; axios for HTTP (or current deps as documented in package.json).
+- **Scope**: Client-side plugin only; no separate backend or database.
+- **Platform**: Obsidian desktop and mobile (minAppVersion as in manifest).
+- **Release artifacts**: main.js, manifest.json, styles.css.
+
+## Development Workflow
+
+- New features SHOULD be specified via .specify flow: spec → plan → tasks. Constitution Check in the implementation plan MUST pass before Phase 0 research and after Phase 1 design.
+- PRs and reviews SHOULD verify compliance with this constitution. Exceptions (e.g. new dependency, structural change) MUST be justified in the plan (e.g. Complexity Tracking table).
+- Breaking changes (e.g. minAppVersion, config renames, removed features) MUST be documented in CHANGELOG and SHOULD trigger a MAJOR version bump.
+- Use README and .specify documentation for runtime and contribution guidance.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes ad-hoc project practices. Amendments require: (1) updating this file with a version bump per semantic versioning (MAJOR: backward-incompatible principle removal or redefinition; MINOR: new principle or material expansion; PATCH: clarifications, typos), (2) updating LAST_AMENDED_DATE, and (3) documenting the change in the Sync Impact Report at the top of this file. All PRs that touch architecture or principles SHOULD confirm compliance with the constitution.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.1.0 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
