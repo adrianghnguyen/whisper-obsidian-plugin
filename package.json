@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"prepare-release": "node scripts/prepare-release.mjs",
 		"release": "release-it"
 	},
 	"keywords": [],
@@ -36,7 +37,7 @@
 	},
 	"release-it": {
 		"hooks": {
-			"before:release": "npm run build",
+			"before:release": "npm run build && npm run prepare-release",
 			"after:bump": "node verify-and-update.mjs",
 			"pre-commit": "lint-staged"
 		},
@@ -48,9 +49,10 @@
 			"github": {
 				"release": true,
 				"assets": [
-					"main.js",
-					"manifest.json",
-					"styles.css"
+					"release/main.js",
+					"release/manifest.json",
+					"release/styles.css",
+					"release/package.json"
 				]
 			}
 		},

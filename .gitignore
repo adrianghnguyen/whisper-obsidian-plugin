@@ -23,3 +23,6 @@ data.json
 
 # env variables
 .env
+
+# Release artifacts (generated for GitHub releases)
+release/
