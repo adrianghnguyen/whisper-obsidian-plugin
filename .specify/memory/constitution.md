@@ -12,6 +12,11 @@
   Modified: Technical Constraints (Architecture bullet), Development Workflow
   Added: Architecture doc now includes external interfaces and behaviours; constitution references them in Technical Constraints and Development Workflow
   Removed sections: None
+
+  Version change: 1.2.1 → 1.3.0
+  Modified: Technical Constraints
+  Added: Data contract (pluggable backends same response contract); newer features primarily extensions or wrappers, no modification of existing plugin code except minimal wiring/GUI
+  Removed sections: None
 -->
 
 # Obsidian Whisper Constitution
@@ -45,6 +50,8 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 - **Platform**: Obsidian desktop and mobile (minAppVersion as in manifest).
 - **Release artifacts**: main.js, manifest.json, styles.css.
 - **Architecture**: Plugin structure, class roles, and external interfaces and behaviours (public APIs, types, lifecycle, Obsidian API usage) are documented in `.specify/memory/whisper-plugin-architecture.md`; that doc is the single source of truth for what the plugin exposes and how components behave.
+- **Data contract**: Pluggable backends (e.g. transcription endpoints) MUST expose the same response contract as existing backends so that downstream logic (vault/editor, etc.) applies uniformly with no branching on backend type. Swapping the endpoint (e.g. cloud vs local) MUST not require changing consumer code.
+- **Extensions and wrappers**: Newer features MUST be implemented primarily as extensions or wrappers. Existing plugin code MUST NOT be modified except where strictly necessary for minimal wiring or GUI (e.g. settings, backend selector). New behaviour lives in new modules that plug in behind the same contract.
 
 ## Development Workflow
 
@@ -58,4 +65,4 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 
 This constitution supersedes ad-hoc project practices. Amendments require: (1) updating this file with a version bump per semantic versioning (MAJOR: backward-incompatible principle removal or redefinition; MINOR: new principle or material expansion; PATCH: clarifications, typos), (2) updating LAST_AMENDED_DATE, and (3) documenting the change in the Sync Impact Report at the top of this file. All PRs that touch architecture or principles SHOULD confirm compliance with the constitution.
 
-**Version**: 1.2.1 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
+**Version**: 1.3.0 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01

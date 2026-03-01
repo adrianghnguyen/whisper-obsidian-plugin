@@ -5,6 +5,8 @@
 **Status**: Draft  
 **Input**: User description: "I want to be able to use the ASR Transformers.js skill as a drop-in replacement for the existing whisper plugin. It should have a minimal footprint and easy to package into the plugin. It'll need to minimally impact the existing plugin. Ask me for clarifications."
 
+**Architecture reference**: [whisper-plugin-architecture.md](.specify/memory/whisper-plugin-architecture.md) — the audio flow is Microphone/File → Blob → AudioHandler → transcription endpoint → `{ text }` → vault/editor. The local backend swaps only the transcription endpoint; the rest of the pipeline is unchanged.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Transcribe using in-browser ASR (Priority: P1)
@@ -67,12 +69,15 @@ The first time a user runs transcription with the in-browser backend, any requir
 - **FR-001**: The plugin MUST support a configurable transcription backend so the user can choose between the existing API-based backend and an in-browser ASR backend.
 - **FR-002**: When the in-browser backend is selected, the plugin MUST produce transcription text from audio (recording or upload) without sending audio to an external API.
 - **FR-003**: The single entry point for transcription (record and upload) MUST remain unchanged; backend selection only affects how audio is turned into text internally.
-- **FR-004**: The plugin MUST keep the main UI responsive during in-browser transcription (e.g. long-running work must not block the main thread).
-- **FR-005**: The plugin MUST use the same vault and editor behaviour for in-browser transcription as for the API backend (create new file vs insert at cursor, paths, and related settings).
-- **FR-006**: Settings MUST store the chosen backend and any backend-specific options (e.g. in-browser model identifier); the settings UI MUST show only relevant options for the selected backend.
-- **FR-007**: The plugin MUST provide clear user feedback for in-browser transcription state (e.g. Idle / Recording / Processing) and for errors or progress (e.g. model preparation), using the same feedback mechanisms as today (e.g. status bar, notices).
-- **FR-008**: The in-browser backend MUST ship with a small default model bundled in the plugin so it works offline from first use; users MUST be able to download and use other models if they want.
-- **FR-009**: The existing API backend MUST remain available and selectable; in-browser is an additional option only.
+- **FR-004**: The in-browser backend MUST provide the exact same response as the cloud endpoint (same output contract: e.g. a single transcription text string) so the same downstream logic (vault/editor) applies to both backends with no branching on backend type.
+- **FR-005**: The plugin MUST keep the main UI responsive during in-browser transcription (e.g. long-running work must not block the main thread).
+- **FR-006**: The plugin MUST use the same vault and editor behaviour for in-browser transcription as for the API backend (create new file vs insert at cursor, paths, and related settings).
+- **FR-007**: Settings MUST store the chosen backend and any backend-specific options (e.g. in-browser model identifier); the settings UI MUST show only relevant options for the selected backend.
+- **FR-008**: The plugin MUST provide clear user feedback for in-browser transcription state (e.g. Idle / Recording / Processing) and for errors or progress (e.g. model preparation), using the same feedback mechanisms as today (e.g. status bar, notices).
+- **FR-009**: The in-browser backend MUST ship with a small default model bundled in the plugin so it works offline from first use; users MUST be able to download and use other models if they want.
+- **FR-010**: The existing API backend MUST remain available and selectable; in-browser is an additional option only.
+- **FR-011**: No existing plugin code MUST be modified. The new local backend is implemented as new code extensions only. The setting for backend choice effectively swaps which transcription endpoint is used (cloud or local); the audio recording pipeline (recording, upload, Blob → AudioHandler) remains exactly as it is today.
+- **FR-012**: Changes for this feature are limited to (1) under-the-hood addition of the local transcription path that returns the same response contract as the cloud endpoint, and (2) GUI changes (e.g. settings) to select the backend and show backend-specific options. No edits to existing pipeline or handler logic.
 
 ### Key Entities
 
@@ -93,6 +98,7 @@ The first time a user runs transcription with the in-browser backend, any requir
 ## Assumptions
 
 - The existing plugin contract (single entry point, vault/editor behaviour, settings storage, commands, feedback) remains; only the implementation of “audio → text” is extended with a second backend.
+- Existing plugin code (recording pipeline, AudioHandler path resolution and vault/editor behaviour, Controls, StatusBar, etc.) is not edited; the local processing model is added as new code extensions that plug in as the local endpoint.
 - In-browser ASR runs in the same process as the plugin (e.g. worker or main thread with non-blocking pattern); no separate long-lived server.
 - A small default model is bundled for offline-first use; additional models can be offered as optional downloads; model choice can be a setting (e.g. default vs downloaded options).
 - Obsidian’s environment (Electron) supports the APIs required for in-browser ASR (e.g. Web Workers, required runtimes). If not, the feature will surface a clear error.
