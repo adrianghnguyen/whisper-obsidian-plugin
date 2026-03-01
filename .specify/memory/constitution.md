@@ -1,8 +1,8 @@
 <!--
   Sync Impact Report
-  Version change: 1.0.0 → 1.1.0
-  Modified principles: II (user-facing errors), IV (release artifacts), V (testing policy)
-  Added: Technical Constraints (release artifacts); Development Workflow (breaking changes)
+  Version change: 1.1.0 → 1.2.0
+  Modified principles: III (fork, minimal surface area)
+  Added: Architecture doc reference (.specify/memory/whisper-plugin-architecture.md); fork and minimal-changes guidance
   Removed sections: None
   Templates: plan-template.md ✅; spec-template.md ✅; tasks-template.md ✅;
     commands/*.md N/A
@@ -23,7 +23,7 @@ API keys MUST be stored and used in a way that avoids exposure (e.g. settings on
 
 ### III. Simplicity and maintainability
 
-The codebase MUST stay minimal: TypeScript, single plugin bundle, minimal dependencies. YAGNI applies; new dependencies or architectural complexity MUST be justified. Rationale: easier maintenance and upgrades for a small team and community.
+The codebase MUST stay minimal: TypeScript, single plugin bundle, minimal dependencies. YAGNI applies; new dependencies or architectural complexity MUST be justified. This repository is a fork of an existing codebase; new changes and features MUST expose minimal changes to existing code and plugin class abstractions (e.g. prefer extending or adding modules over modifying core plugin classes). Rationale: easier maintenance, upgrades, and upstream alignment.
 
 ### IV. Conventional commits and versioning
 
@@ -39,9 +39,11 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 - **Scope**: Client-side plugin only; no separate backend or database.
 - **Platform**: Obsidian desktop and mobile (minAppVersion as in manifest).
 - **Release artifacts**: main.js, manifest.json, styles.css.
+- **Architecture**: Plugin structure and class roles are documented in `.specify/memory/whisper-plugin-architecture.md`.
 
 ## Development Workflow
 
+- Architecture and plugin structure are documented in `.specify/memory/whisper-plugin-architecture.md`; use it when planning changes to preserve minimal surface area on the existing code.
 - New features SHOULD be specified via .specify flow: spec → plan → tasks. Constitution Check in the implementation plan MUST pass before Phase 0 research and after Phase 1 design.
 - PRs and reviews SHOULD verify compliance with this constitution. Exceptions (e.g. new dependency, structural change) MUST be justified in the plan (e.g. Complexity Tracking table).
 - Breaking changes (e.g. minAppVersion, config renames, removed features) MUST be documented in CHANGELOG and SHOULD trigger a MAJOR version bump.
@@ -51,4 +53,4 @@ Before release, the build MUST pass (TypeScript check and esbuild bundle). Linti
 
 This constitution supersedes ad-hoc project practices. Amendments require: (1) updating this file with a version bump per semantic versioning (MAJOR: backward-incompatible principle removal or redefinition; MINOR: new principle or material expansion; PATCH: clarifications, typos), (2) updating LAST_AMENDED_DATE, and (3) documenting the change in the Sync Impact Report at the top of this file. All PRs that touch architecture or principles SHOULD confirm compliance with the constitution.
 
-**Version**: 1.1.0 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
+**Version**: 1.2.0 | **Ratified**: 2025-03-01 | **Last Amended**: 2025-03-01
