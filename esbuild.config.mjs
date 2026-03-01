@@ -3,6 +3,7 @@ import process from "process";
 import builtins from "builtin-modules";
 import dotenv from "dotenv";
 import path from "path";
+import { inlineWorkerPlugin } from "@aidenlx/esbuild-plugin-inline-worker";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -24,6 +25,12 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["main.ts"],
 	bundle: true,
+	plugins: [
+		inlineWorkerPlugin({
+			watch: !prod,
+			buildOptions: async () => ({ target: "es2020" }),
+		}),
+	],
 	external: [
 		"obsidian",
 		"electron",

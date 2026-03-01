@@ -5,7 +5,7 @@ Obsidian Whisper is a plugin that effortlessly turns your speech into written no
 ## 🚀 Getting Started
 
 1. This plugin can be installed from "Community Plugins" inside Obsidian.
-2. For this plugin to work, you will need to provide your OpenAI API key. See the Settings section of this README file for more information.
+2. For cloud transcription (default), you need an OpenAI API key. You can also use **in-browser transcription** which runs entirely locally—no API key required.
 
 ## 🎯 How to Use
 
@@ -36,11 +36,15 @@ Both "Start/Stop recording" and "Upload Audio File" actions can also be accessed
 
 ## ⚙️ Settings
 
--   API Key: Input your OpenAI API key to unlock the advanced transcription capabilities of the Whisper API. You can obtain a key from OpenAI at this [link](https://platform.openai.com/overview). If you are not familiar with the concept of an API key, you can learn more about this at this [link](https://tfthacker.medium.com/how-to-get-your-own-api-key-for-using-openai-chatgpt-in-obsidian-41b7dd71f8d3).
+-   **Transcription backend**: Choose "API (cloud)" or "In-browser (local)". Local transcription runs entirely in your browser using Transformers.js—no API key needed. Cloud requires an OpenAI API key.
 
--   API URL: Specify the endpoint that will be used to make requests to the Whisper API. This should not be changed unless you have a specific reason to use a different endpoint.
+-   **API Key** (cloud only): Input your OpenAI API key. Obtain a key from OpenAI at this [link](https://platform.openai.com/overview).
 
--   Model: Choose the machine learning model to use for generating text transcriptions. This should not be changed unless you have a specific reason to use a different model.
+-   **API URL** (cloud only): Specify the endpoint for Whisper API requests.
+
+-   **Model** (cloud only): Choose the machine learning model for transcriptions.
+
+-   **Local model** (in-browser only): Choose the model for local transcription. First use downloads the model; subsequent runs use cached data.
 
 -   Language: Specify the language of the message being whispered. For a list of languages and codes, consult this [link](https://github.com/openai/whisper/blob/main/whisper/tokenizer.py).
 

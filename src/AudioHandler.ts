@@ -2,6 +2,12 @@ import axios from "axios";
 import Whisper from "main";
 import { Notice, MarkdownView } from "obsidian";
 import { getBaseFileName } from "./utils";
+import {
+	transcribeLocal,
+	canRunLocalAsr,
+	handleTranscribeFailure,
+} from "./localAsr";
+import { RecordingStatus } from "./StatusBar";
 
 export class AudioHandler {
 	private plugin: Whisper;
@@ -30,20 +36,36 @@ export class AudioHandler {
 			new Notice(`Sending audio data size: ${blob.size / 1000} KB`);
 		}
 
-		if (!this.plugin.settings.apiKey) {
-			new Notice(
-				"API key is missing. Please add your API key in the settings."
-			);
-			return;
+		if (this.plugin.settings.transcriptionBackend === "api") {
+			if (!this.plugin.settings.apiKey) {
+				new Notice(
+					"API key is missing. Please add your API key in the settings."
+				);
+				return;
+			}
+		} else {
+			// Local backend: check capability before proceeding
+			if (!canRunLocalAsr()) {
+				console.error(
+					"[Whisper] Environment does not support Web Workers"
+				);
+				new Notice(
+					"In-browser transcription is not supported in this environment."
+				);
+				new Notice("Use cloud instead? Switch to API backend in settings.");
+				return;
+			}
 		}
 
-		const formData = new FormData();
-		formData.append("file", blob, fileName);
-		formData.append("model", this.plugin.settings.model);
-		formData.append("language", this.plugin.settings.language);
-		if (this.plugin.settings.prompt)
-			formData.append("prompt", this.plugin.settings.prompt);
-
+		let formData: FormData | null = null;
+		if (this.plugin.settings.transcriptionBackend === "api") {
+			formData = new FormData();
+			formData.append("file", blob, fileName);
+			formData.append("model", this.plugin.settings.model);
+			formData.append("language", this.plugin.settings.language);
+			if (this.plugin.settings.prompt)
+				formData.append("prompt", this.plugin.settings.prompt);
+		}
 		try {
 			// If the saveAudioFile setting is true, save the audio file
 			if (this.plugin.settings.saveAudioFile) {
@@ -60,19 +82,32 @@ export class AudioHandler {
 		}
 
 		try {
-			if (this.plugin.settings.debugMode) {
-				new Notice("Parsing audio data:" + fileName);
-			}
-			const response = await axios.post(
-				this.plugin.settings.apiUrl,
-				formData,
-				{
-					headers: {
-						"Content-Type": "multipart/form-data",
-						Authorization: `Bearer ${this.plugin.settings.apiKey}`,
-					},
+			let text: string;
+			if (this.plugin.settings.transcriptionBackend === "local") {
+				if (this.plugin.settings.debugMode) {
+					new Notice("Parsing audio data (local):" + fileName);
 				}
-			);
+				this.plugin.statusBar?.updateStatus(RecordingStatus.Loading);
+				const result = await transcribeLocal(blob, fileName, {
+					modelId: this.plugin.settings.localModelId,
+				});
+				text = result.text;
+			} else {
+				if (this.plugin.settings.debugMode) {
+					new Notice("Parsing audio data:" + fileName);
+				}
+				const response = await axios.post(
+					this.plugin.settings.apiUrl,
+					formData!,
+					{
+						headers: {
+							"Content-Type": "multipart/form-data",
+							Authorization: `Bearer ${this.plugin.settings.apiKey}`,
+						},
+					}
+				);
+				text = response.data.text;
+			}
 
 			// Determine if a new file should be created
 			const activeView =
@@ -83,7 +118,7 @@ export class AudioHandler {
 			if (shouldCreateNewFile) {
 				await this.plugin.app.vault.create(
 					noteFilePath,
-					`![[${audioFilePath}]]\n${response.data.text}`
+					`![[${audioFilePath}]]\n${text}`
 				);
 				await this.plugin.app.workspace.openLinkText(
 					noteFilePath,
@@ -98,12 +133,12 @@ export class AudioHandler {
 					)?.editor;
 				if (editor) {
 					const cursorPosition = editor.getCursor();
-					editor.replaceRange(response.data.text, cursorPosition);
+					editor.replaceRange(text, cursorPosition);
 
 					// Move the cursor to the end of the inserted text
 					const newPosition = {
 						line: cursorPosition.line,
-						ch: cursorPosition.ch + response.data.text.length,
+						ch: cursorPosition.ch + text.length,
 					};
 					editor.setCursor(newPosition);
 				}
@@ -111,8 +146,12 @@ export class AudioHandler {
 
 			new Notice("Audio parsed successfully.");
 		} catch (err) {
-			console.error("Error parsing audio:", err);
-			new Notice("Error parsing audio: " + err.message);
+			if (this.plugin.settings.transcriptionBackend === "local") {
+				handleTranscribeFailure(err);
+			} else {
+				console.error("Error parsing audio:", err);
+				new Notice("Error parsing audio: " + err.message);
+			}
 		}
 	}
 }

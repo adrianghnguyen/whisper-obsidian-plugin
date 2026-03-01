@@ -1,5 +1,7 @@
 import { Plugin } from "obsidian";
 
+export type TranscriptionBackend = "api" | "local";
+
 export interface WhisperSettings {
 	apiKey: string;
 	apiUrl: string;
@@ -11,6 +13,8 @@ export interface WhisperSettings {
 	debugMode: boolean;
 	createNewFileAfterRecording: boolean;
 	createNewFileAfterRecordingPath: string;
+	transcriptionBackend: TranscriptionBackend;
+	localModelId: string;
 }
 
 export const DEFAULT_SETTINGS: WhisperSettings = {
@@ -24,6 +28,8 @@ export const DEFAULT_SETTINGS: WhisperSettings = {
 	debugMode: false,
 	createNewFileAfterRecording: true,
 	createNewFileAfterRecordingPath: "",
+	transcriptionBackend: "api",
+	localModelId: "Xenova/whisper-tiny.en",
 };
 
 export class SettingsManager {

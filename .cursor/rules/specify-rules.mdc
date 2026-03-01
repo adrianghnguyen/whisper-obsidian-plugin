@@ -1,0 +1,35 @@
+---
+description: Project Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# whisper-obsidian-plugin Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-03-01
+
+## Active Technologies
+
+- TypeScript (as in repo; esbuild bundle) + Obsidian plugin API, esbuild, axios; for this feature add Transformers.js (e.g. @huggingface/transformers) for in-browser ASR (001-transformers-js-asr-dropin)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+npm test && npm run lint
+
+## Code Style
+
+TypeScript (as in repo; esbuild bundle): Follow standard conventions
+
+## Recent Changes
+
+- 001-transformers-js-asr-dropin: Added TypeScript (as in repo; esbuild bundle) + Obsidian plugin API, esbuild, axios; for this feature add Transformers.js (e.g. @huggingface/transformers) for in-browser ASR
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->
