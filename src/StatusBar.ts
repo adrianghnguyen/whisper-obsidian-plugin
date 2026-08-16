@@ -1,4 +1,5 @@
-import { Plugin } from "obsidian";
+import { Notice, setIcon } from "obsidian";
+import Whisper from "main";
 
 export enum RecordingStatus {
 	Idle = "idle",
@@ -7,16 +8,28 @@ export enum RecordingStatus {
 	Processing = "processing",
 }
 
+type InputDeviceOption = {
+	id: string;
+	label: string;
+};
+
 export class StatusBar {
-	plugin: Plugin;
+	plugin: Whisper;
 	statusBarItem: HTMLElement | null = null;
 	status: RecordingStatus = RecordingStatus.Idle;
 	private listeners: Array<(status: RecordingStatus) => void> = [];
+	private deviceLabel = "Default";
+	private permissionRequested = false;
 
-	constructor(plugin: Plugin) {
+	constructor(plugin: Whisper) {
 		this.plugin = plugin;
 		this.statusBarItem = this.plugin.addStatusBarItem();
+		this.statusBarItem.addClass("whisper-status-bar");
+		this.statusBarItem.addEventListener("click", () => {
+			void this.cycleDevice();
+		});
 		this.updateStatusBarItem();
+		void this.refreshDeviceLabel();
 	}
 
 	onChange(listener: (status: RecordingStatus) => void): void {
@@ -33,28 +46,127 @@ export class StatusBar {
 		this.listeners.forEach((fn) => fn(status));
 	}
 
-	updateStatusBarItem() {
-		if (this.statusBarItem) {
-			switch (this.status) {
-				case RecordingStatus.Recording:
-					this.statusBarItem.textContent = "Recording...";
-					this.statusBarItem.style.color = "red";
-					break;
-				case RecordingStatus.Paused:
-					this.statusBarItem.textContent = "Paused";
-					this.statusBarItem.style.color = "yellow";
-					break;
-				case RecordingStatus.Processing:
-					this.statusBarItem.textContent = "Processing...";
-					this.statusBarItem.style.color = "gray";
-					break;
-				case RecordingStatus.Idle:
-				default:
-					this.statusBarItem.textContent = "Whisper Idle";
-					this.statusBarItem.style.color = "green";
-					break;
+	shortLabel(label: string): string {
+		const text = label || "Default";
+		if (text.length <= 18) {
+			return text;
+		}
+		return text.slice(0, 17) + "...";
+	}
+
+	async listInputDevices(): Promise<InputDeviceOption[]> {
+		const list: InputDeviceOption[] = [{ id: "default", label: "Default" }];
+		try {
+			const allDevices = await navigator.mediaDevices.enumerateDevices();
+			for (const device of allDevices) {
+				if (device.kind !== "audioinput") continue;
+				if (!device.deviceId || device.deviceId === "default") continue;
+				list.push({
+					id: device.deviceId,
+					label:
+						device.label ||
+						`Unknown device (${device.deviceId.substring(0, 8)})`,
+				});
+			}
+		} catch (err) {
+			console.error("Error enumerating audio devices:", err);
+		}
+		return list;
+	}
+
+	async refreshDeviceLabel(): Promise<void> {
+		const devices = await this.listInputDevices();
+		const currentId = this.plugin.settings.audioDeviceId || "default";
+		const match = devices.find((d) => d.id === currentId);
+		if (match) {
+			this.deviceLabel = match.label;
+		} else {
+			this.deviceLabel = "Default";
+			const hasRealIds = devices.some(
+				(d) => d.id && d.id !== "default"
+			);
+			if (hasRealIds && currentId !== "default") {
+				this.plugin.settings.audioDeviceId = "default";
+				await this.plugin.settingsManager.saveSettings(
+					this.plugin.settings
+				);
+				this.plugin.recorder.setDeviceId(null);
 			}
 		}
+		this.updateStatusBarItem();
+	}
+
+	async cycleDevice(): Promise<void> {
+		if (
+			this.status === RecordingStatus.Recording ||
+			this.status === RecordingStatus.Paused
+		) {
+			new Notice("Microphone changes on the next recording");
+			return;
+		}
+		if (!this.permissionRequested) {
+			this.permissionRequested = true;
+			try {
+				const stream = await navigator.mediaDevices.getUserMedia({
+					audio: true,
+				});
+				stream.getTracks().forEach((track) => track.stop());
+			} catch (err) {
+				console.log(
+					"Microphone permission not granted, device labels may be limited"
+				);
+			}
+		}
+		const devices = await this.listInputDevices();
+		let currentId = this.plugin.settings.audioDeviceId || "default";
+		if (!devices.some((d) => d.id === currentId)) {
+			currentId = "default";
+		}
+		const idx = devices.findIndex((d) => d.id === currentId);
+		const next = devices[(idx < 0 ? 0 : idx + 1) % devices.length];
+		this.plugin.settings.audioDeviceId = next.id;
+		await this.plugin.settingsManager.saveSettings(this.plugin.settings);
+		this.plugin.recorder.setDeviceId(
+			next.id === "default" ? null : next.id
+		);
+		this.deviceLabel = next.label;
+		this.updateStatusBarItem();
+		new Notice(next.label);
+	}
+
+	updateStatusBarItem() {
+		if (!this.statusBarItem) {
+			return;
+		}
+		const full = this.deviceLabel || "Default";
+		const short = this.shortLabel(full);
+		let text = short;
+		let color = "green";
+		switch (this.status) {
+			case RecordingStatus.Recording:
+				text = `Recording · ${short}`;
+				color = "red";
+				break;
+			case RecordingStatus.Paused:
+				text = `Paused · ${short}`;
+				color = "yellow";
+				break;
+			case RecordingStatus.Processing:
+				text = `Processing · ${short}`;
+				color = "gray";
+				break;
+			case RecordingStatus.Idle:
+			default:
+				text = short;
+				color = "green";
+				break;
+		}
+		this.statusBarItem.empty();
+		this.statusBarItem.style.color = color;
+		setIcon(this.statusBarItem, "mic");
+		this.statusBarItem.appendText(text);
+		this.statusBarItem.setAttribute("title", full);
+		this.statusBarItem.setAttribute("aria-label", full);
 	}
 
 	remove() {

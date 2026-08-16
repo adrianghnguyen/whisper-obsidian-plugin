@@ -36,3 +36,13 @@
 	width: 14px;
 	height: 14px;
 }
+
+.whisper-status-bar {
+	cursor: pointer;
+}
+.whisper-status-bar svg {
+	width: 14px;
+	height: 14px;
+	vertical-align: middle;
+	margin-right: 4px;
+}

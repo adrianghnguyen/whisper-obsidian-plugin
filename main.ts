@@ -97,6 +97,16 @@ export default class Whisper extends Plugin {
 		this.statusBar.remove();
 	}
 
+	async onExternalSettingsChange() {
+		this.settings = await this.settingsManager.loadSettings();
+		const deviceId =
+			this.settings.audioDeviceId === "default"
+				? null
+				: this.settings.audioDeviceId;
+		this.recorder.setDeviceId(deviceId);
+		await this.statusBar.refreshDeviceLabel();
+	}
+
 	// --- Recording state transitions (single source of truth) ---
 
 	async startRecording() {
@@ -217,6 +227,14 @@ export default class Whisper extends Plugin {
 			id: "open-recording-controls",
 			name: "Open recording controls",
 			callback: () => this.openControls(),
+		});
+
+		this.addCommand({
+			id: "cycle-microphone",
+			name: "Cycle microphone",
+			callback: () => {
+				void this.statusBar.cycleDevice();
+			},
 		});
 	}
 
