@@ -1,5 +1,17 @@
 
 
+## [1.9.3](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.1...1.9.3) (2026-08-15)
+
+### Features
+
+* per-host microphone map in synced data.json
+* status bar shows and cycles the current microphone
+* explicit Clear for API keys in secret storage
+
+### Bug Fixes
+
+* skip empty SecretStorage writes so settings rebuilds do not wipe keys
+
 ## [1.9.1](https://github.com/nikdanilov/whisper-obsidian-plugin/compare/1.9.0...1.9.1) (2026-04-07)
 
 

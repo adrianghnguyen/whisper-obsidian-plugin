@@ -5,11 +5,13 @@ import {
 	PostProcessingProvider,
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
+	ApiKeysSettings,
 } from "./SettingsManager";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private plugin: Whisper;
 	private settingsManager: SettingsManager;
+	private rebuilding = false;
 
 	constructor(app: App, plugin: Whisper) {
 		super(app, plugin);
@@ -20,6 +22,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		const scrollTop = containerEl.scrollTop;
+		this.rebuilding = true;
 
 		containerEl.empty();
 
@@ -75,6 +78,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Advanced").setHeading();
 		this.createDebugModeToggleSetting();
 
+		this.rebuilding = false;
 		// Restore scroll position after re-render to prevent jumping
 		containerEl.scrollTop = scrollTop;
 	}
@@ -106,16 +110,32 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		desc: string,
 		placeholder: string,
 		value: string,
+		field: keyof ApiKeysSettings,
 		onChange: (value: string) => Promise<void>
 	): void {
 		new Setting(this.containerEl)
 			.setName(name)
-			.setDesc(desc)
+			.setDesc(
+				desc +
+					" The key lives in Obsidian secret storage on this device. Clear removes it from there."
+			)
 			.addText((text) => {
+				text.inputEl.type = "password";
 				text.setPlaceholder(placeholder)
 					.setValue(value)
-					.onChange(async (value) => await onChange(value));
-				text.inputEl.type = "password";
+					.onChange(async (value) => {
+						if (this.rebuilding) return;
+						await onChange(value);
+					});
+			})
+			.addButton((button) => {
+				button.setButtonText("Clear").onClick(() => {
+					this.settingsManager.clearApiKey(
+						this.plugin.settings,
+						field
+					);
+					this.display();
+				});
 			});
 	}
 
@@ -125,6 +145,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			"API key for Whisper transcription (OpenAI, Groq, or Azure)",
 			"sk-...xxxx",
 			this.plugin.settings.apiKey,
+			"apiKey",
 			async (value) => {
 				this.plugin.settings.apiKey = value;
 				await this.settingsManager.saveSettings(this.plugin.settings);
@@ -138,6 +159,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			"API key for GPT post-processing models",
 			"sk-...xxxx",
 			this.plugin.settings.openAiApiKey,
+			"openAiApiKey",
 			async (value) => {
 				this.plugin.settings.openAiApiKey = value;
 				await this.settingsManager.saveSettings(this.plugin.settings);
@@ -151,6 +173,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			"API key for Claude post-processing models",
 			"sk-ant-...xxxx",
 			this.plugin.settings.anthropicApiKey,
+			"anthropicApiKey",
 			async (value) => {
 				this.plugin.settings.anthropicApiKey = value;
 				await this.settingsManager.saveSettings(this.plugin.settings);
@@ -213,7 +236,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private async createAudioDeviceSetting(): Promise<void> {
 		const setting = new Setting(this.containerEl)
 			.setName("Microphone")
-			.setDesc("Select the audio input device to use for recording");
+			.setDesc(
+				"This machine's microphone. Each computer stores its own choice in the synced settings file."
+			);
 
 		// Request permission first to get device labels (some browsers hide labels until permission is granted)
 		try {
@@ -497,18 +522,17 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private createPostProcessingApiKeySetting(): void {
 		if (this.plugin.settings.postProcessingProvider !== "custom") return;
 
-		new Setting(this.containerEl)
-			.setName("Post-processing API Key")
-			.setDesc("API key for the custom endpoint")
-			.addText((text) => {
-				text.setPlaceholder("sk-...xxxx")
-					.setValue(this.plugin.settings.postProcessingApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.postProcessingApiKey = value;
-						await this.save();
-					});
-				text.inputEl.type = "password";
-			});
+		this.createApiKeySetting(
+			"Post-processing API Key",
+			"API key for the custom endpoint",
+			"sk-...xxxx",
+			this.plugin.settings.postProcessingApiKey,
+			"postProcessingApiKey",
+			async (value) => {
+				this.plugin.settings.postProcessingApiKey = value;
+				await this.save();
+			}
+		);
 	}
 
 	private createPostProcessingModelSetting(): void {
