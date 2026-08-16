@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_SETTINGS } from "../src/SettingsManager";
+import {
+	DEFAULT_SETTINGS,
+	resolveHostAudioDeviceId,
+} from "../src/SettingsManager";
 
 describe("DEFAULT_SETTINGS", () => {
 	it("has correct API defaults", () => {
@@ -31,5 +34,45 @@ describe("DEFAULT_SETTINGS", () => {
 
 	it("defaults to system audio device", () => {
 		expect(DEFAULT_SETTINGS.audioDeviceId).toBe("default");
+		expect(DEFAULT_SETTINGS.audioDeviceIds).toEqual({});
+	});
+});
+
+describe("resolveHostAudioDeviceId", () => {
+	it("prefers this host's map entry", () => {
+		const result = resolveHostAudioDeviceId(
+			{
+				...DEFAULT_SETTINGS,
+				audioDeviceId: "stale",
+				audioDeviceIds: { "DESKTOP-A": "hash-a", LAPTOP: "hash-b" },
+			},
+			"DESKTOP-A",
+			"local-old"
+		);
+		expect(result.audioDeviceId).toBe("hash-a");
+		expect(result.persist).toBe(false);
+	});
+
+	it("migrates localStorage when this host is missing", () => {
+		const result = resolveHostAudioDeviceId(
+			{ ...DEFAULT_SETTINGS, audioDeviceIds: { LAPTOP: "hash-b" } },
+			"DESKTOP-A",
+			"local-mic"
+		);
+		expect(result.audioDeviceId).toBe("local-mic");
+		expect(result.audioDeviceIds["DESKTOP-A"]).toBe("local-mic");
+		expect(result.audioDeviceIds.LAPTOP).toBe("hash-b");
+		expect(result.persist).toBe(true);
+	});
+
+	it("migrates a flat audioDeviceId when map and localStorage are empty", () => {
+		const result = resolveHostAudioDeviceId(
+			{ ...DEFAULT_SETTINGS, audioDeviceId: "flat-hash" },
+			"DESKTOP-A",
+			null
+		);
+		expect(result.audioDeviceId).toBe("flat-hash");
+		expect(result.audioDeviceIds["DESKTOP-A"]).toBe("flat-hash");
+		expect(result.persist).toBe(true);
 	});
 });

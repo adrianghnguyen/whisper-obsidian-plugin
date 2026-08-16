@@ -1,7 +1,15 @@
 // Minimal Obsidian API mocks for testing
 
 export class Plugin {
-	app: any = {};
+	app: any = {
+		loadLocalStorage: (_key: string) => null,
+		saveLocalStorage: (_key: string, _value: string) => {},
+		secretStorage: {
+			getSecret: (_id: string) => "",
+			setSecret: (_id: string, _value: string) => {},
+			deleteSecret: (_id: string) => {},
+		},
+	};
 	addStatusBarItem() {
 		return document.createElement("div");
 	}
@@ -57,6 +65,9 @@ export class Setting {
 	addDropdown(_cb: any) {
 		return this;
 	}
+	addButton(_cb: any) {
+		return this;
+	}
 	setDisabled(_d: boolean) {
 		return this;
 	}
@@ -92,3 +103,9 @@ export class ButtonComponent {
 export class TFolder {
 	path: string = "";
 }
+
+export const Platform = {
+	isDesktopApp: true,
+};
+
+export function setIcon(_el: HTMLElement, _icon: string) {}

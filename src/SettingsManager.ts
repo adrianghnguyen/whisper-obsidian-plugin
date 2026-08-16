@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Platform, Plugin } from "obsidian";
 
 const SECRET_IDS: Record<keyof ApiKeysSettings, string> = {
 	apiKey: "api-key",
@@ -6,6 +6,8 @@ const SECRET_IDS: Record<keyof ApiKeysSettings, string> = {
 	anthropicApiKey: "anthropic-api-key",
 	postProcessingApiKey: "post-processing-api-key",
 };
+
+export const AUDIO_DEVICE_LS_KEY = "whisper:audioDeviceId";
 
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
 
@@ -39,6 +41,7 @@ export interface WhisperSettings {
 	cursorContext: boolean;
 	// Recording
 	audioDeviceId: string;
+	audioDeviceIds: Record<string, string>;
 	saveAudioFile: boolean;
 	audioSavePath: string;
 	// Output
@@ -81,6 +84,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	responseFormat: "json",
 	cursorContext: false,
 	audioDeviceId: "default",
+	audioDeviceIds: {},
 	saveAudioFile: true,
 	audioSavePath: "",
 	createNoteFile: true,
@@ -109,6 +113,49 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	...DEFAULT_POST_PROCESSING,
 };
 
+export function getHostname(): string {
+	if (Platform.isDesktopApp && typeof process !== "undefined" && process.env) {
+		return process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown";
+	}
+	return "mobile";
+}
+
+export function resolveHostAudioDeviceId(
+	settings: PluginSettings,
+	host: string,
+	localStorageId: string | null
+): {
+	audioDeviceId: string;
+	audioDeviceIds: Record<string, string>;
+	persist: boolean;
+} {
+	const audioDeviceIds = { ...(settings.audioDeviceIds || {}) };
+	if (audioDeviceIds[host]) {
+		return {
+			audioDeviceId: audioDeviceIds[host],
+			audioDeviceIds,
+			persist: false,
+		};
+	}
+	if (localStorageId) {
+		audioDeviceIds[host] = localStorageId;
+		return {
+			audioDeviceId: localStorageId,
+			audioDeviceIds,
+			persist: true,
+		};
+	}
+	if (settings.audioDeviceId && settings.audioDeviceId !== "default") {
+		audioDeviceIds[host] = settings.audioDeviceId;
+		return {
+			audioDeviceId: settings.audioDeviceId,
+			audioDeviceIds,
+			persist: true,
+		};
+	}
+	return { audioDeviceId: "default", audioDeviceIds, persist: false };
+}
+
 export class SettingsManager {
 	private plugin: Plugin;
 
@@ -136,13 +183,36 @@ export class SettingsManager {
 	}
 
 	private syncKeysToSecretStorage(settings: PluginSettings): void {
-		// Write current in-memory keys to SecretStorage (including empty values
-		// so that clearing a field clears the stored secret) and strip them from
-		// the settings object so they never land in data.json.
+		// Write non-empty in-memory keys to SecretStorage. An empty value does
+		// not overwrite an existing secret (settings rebuilds used to wipe keys).
+		// Strip keys from the settings object so they never land in data.json.
 		for (const [field, secretId] of Object.entries(SECRET_IDS)) {
 			const key = field as keyof ApiKeysSettings;
-			this.secrets.setSecret(secretId, settings[key]);
+			const value = settings[key];
+			if (!value) {
+				const existing = this.secrets.getSecret(secretId);
+				if (existing) {
+					settings[key] = "";
+					continue;
+				}
+			}
+			this.secrets.setSecret(secretId, value);
 			settings[key] = "";
+		}
+	}
+
+	clearApiKey(settings: PluginSettings, field: keyof ApiKeysSettings): void {
+		const secretId = SECRET_IDS[field];
+		settings[field] = "";
+		const secrets = this.secrets as {
+			getSecret(id: string): string | null;
+			setSecret(id: string, value: string): void;
+			deleteSecret?: (id: string) => void;
+		};
+		if (typeof secrets.deleteSecret === "function") {
+			secrets.deleteSecret(secretId);
+		} else {
+			secrets.setSecret(secretId, "");
 		}
 	}
 
@@ -171,21 +241,56 @@ export class SettingsManager {
 		return false;
 	}
 
+	private persistDiskSettings(settings: PluginSettings): Promise<void> {
+		const host = getHostname();
+		const deviceId = settings.audioDeviceId || "default";
+		const toSave: PluginSettings = {
+			...settings,
+			audioDeviceId: "default",
+			audioDeviceIds: {
+				...(settings.audioDeviceIds || {}),
+				[host]: deviceId,
+			},
+			apiKey: "",
+			openAiApiKey: "",
+			anthropicApiKey: "",
+			postProcessingApiKey: "",
+		};
+		return this.plugin.saveData(toSave);
+	}
+
 	async loadSettings(): Promise<PluginSettings> {
 		const settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
 			await this.plugin.loadData()
 		);
+		if (!settings.audioDeviceIds) {
+			settings.audioDeviceIds = {};
+		}
+
+		const host = getHostname();
+		const localRaw = this.plugin.app.loadLocalStorage(AUDIO_DEVICE_LS_KEY);
+		const localId =
+			typeof localRaw === "string" && localRaw !== "" ? localRaw : null;
+		const resolved = resolveHostAudioDeviceId(settings, host, localId);
+		settings.audioDeviceId = resolved.audioDeviceId;
+		settings.audioDeviceIds = resolved.audioDeviceIds;
+
+		let persist = resolved.persist;
 
 		// Migrate provider setting for existing users
 		if (this.migratePostProcessingProvider(settings)) {
-			await this.plugin.saveData(settings);
+			persist = true;
 		}
 
 		// One-time migration of any plain-text keys left in data.json
 		if (this.migrateKeysFromDataJson(settings)) {
-			await this.plugin.saveData(settings);
+			persist = true;
+		}
+
+		if (persist) {
+			await this.persistDiskSettings(settings);
 		}
 
 		// Populate in-memory settings from SecretStorage
@@ -194,10 +299,22 @@ export class SettingsManager {
 	}
 
 	async saveSettings(settings: PluginSettings): Promise<void> {
-		// Sync current keys to SecretStorage and strip them from data.json
+		const host = getHostname();
+		const deviceId = settings.audioDeviceId || "default";
+		const disk = (await this.plugin.loadData()) ?? {};
+		const audioDeviceIds = {
+			...((disk.audioDeviceIds as Record<string, string>) || {}),
+			[host]: deviceId,
+		};
+		this.plugin.app.saveLocalStorage(AUDIO_DEVICE_LS_KEY, deviceId);
 		this.syncKeysToSecretStorage(settings);
-		await this.plugin.saveData(settings);
-		// Restore keys in memory so the rest of the plugin can use them
+		await this.plugin.saveData({
+			...settings,
+			audioDeviceId: "default",
+			audioDeviceIds,
+		});
 		this.loadKeysFromSecretStorage(settings);
+		settings.audioDeviceId = deviceId;
+		settings.audioDeviceIds = audioDeviceIds;
 	}
 }
