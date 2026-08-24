@@ -1,5 +1,6 @@
 import { Notice, setIcon } from "obsidian";
 import Whisper from "main";
+import { listInputDevices } from "./audioDevices";
 
 export enum RecordingStatus {
 	Idle = "idle",
@@ -7,11 +8,6 @@ export enum RecordingStatus {
 	Paused = "paused",
 	Processing = "processing",
 }
-
-type InputDeviceOption = {
-	id: string;
-	label: string;
-};
 
 export class StatusBar {
 	plugin: Whisper;
@@ -54,28 +50,8 @@ export class StatusBar {
 		return text.slice(0, 17) + "...";
 	}
 
-	async listInputDevices(): Promise<InputDeviceOption[]> {
-		const list: InputDeviceOption[] = [{ id: "default", label: "Default" }];
-		try {
-			const allDevices = await navigator.mediaDevices.enumerateDevices();
-			for (const device of allDevices) {
-				if (device.kind !== "audioinput") continue;
-				if (!device.deviceId || device.deviceId === "default") continue;
-				list.push({
-					id: device.deviceId,
-					label:
-						device.label ||
-						`Unknown device (${device.deviceId.substring(0, 8)})`,
-				});
-			}
-		} catch (err) {
-			console.error("Error enumerating audio devices:", err);
-		}
-		return list;
-	}
-
 	async refreshDeviceLabel(): Promise<void> {
-		const devices = await this.listInputDevices();
+		const devices = await listInputDevices();
 		const currentId = this.plugin.settings.audioDeviceId || "default";
 		const match = devices.find((d) => d.id === currentId);
 		if (match) {
@@ -117,7 +93,7 @@ export class StatusBar {
 				);
 			}
 		}
-		const devices = await this.listInputDevices();
+		const devices = await listInputDevices();
 		let currentId = this.plugin.settings.audioDeviceId || "default";
 		if (!devices.some((d) => d.id === currentId)) {
 			currentId = "default";
