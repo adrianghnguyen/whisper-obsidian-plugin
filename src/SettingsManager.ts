@@ -113,11 +113,48 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	...DEFAULT_POST_PROCESSING,
 };
 
+export function resolveDesktopHostname(
+	osHostname?: string | null,
+	env: Record<string, string | undefined> = {}
+): string {
+	const fromOs = osHostname?.trim();
+	if (fromOs) {
+		return fromOs;
+	}
+	return env.COMPUTERNAME || env.HOSTNAME || "unknown";
+}
+
+function readOsHostname(): string | undefined {
+	try {
+		// Node builtin; available in the desktop Electron app, not on mobile.
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const os = require("os") as { hostname: () => string };
+		return os.hostname();
+	} catch {
+		return undefined;
+	}
+}
+
+export function syncsHostAudioDeviceMap(): boolean {
+	return Platform.isDesktopApp;
+}
+
 export function getHostname(): string {
-	if (Platform.isDesktopApp && typeof process !== "undefined" && process.env) {
-		return process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown";
+	if (Platform.isDesktopApp) {
+		const env =
+			typeof process !== "undefined" && process.env ? process.env : {};
+		return resolveDesktopHostname(readOsHostname(), env);
 	}
 	return "mobile";
+}
+
+export function resolveMobileAudioDeviceId(
+	localStorageId: string | null
+): string {
+	if (localStorageId && localStorageId !== "") {
+		return localStorageId;
+	}
+	return "default";
 }
 
 export function resolveHostAudioDeviceId(
@@ -242,15 +279,15 @@ export class SettingsManager {
 	}
 
 	private persistDiskSettings(settings: PluginSettings): Promise<void> {
-		const host = getHostname();
 		const deviceId = settings.audioDeviceId || "default";
+		const audioDeviceIds = { ...(settings.audioDeviceIds || {}) };
+		if (syncsHostAudioDeviceMap()) {
+			audioDeviceIds[getHostname()] = deviceId;
+		}
 		const toSave: PluginSettings = {
 			...settings,
 			audioDeviceId: "default",
-			audioDeviceIds: {
-				...(settings.audioDeviceIds || {}),
-				[host]: deviceId,
-			},
+			audioDeviceIds,
 			apiKey: "",
 			openAiApiKey: "",
 			anthropicApiKey: "",
@@ -269,15 +306,25 @@ export class SettingsManager {
 			settings.audioDeviceIds = {};
 		}
 
-		const host = getHostname();
 		const localRaw = this.plugin.app.loadLocalStorage(AUDIO_DEVICE_LS_KEY);
 		const localId =
 			typeof localRaw === "string" && localRaw !== "" ? localRaw : null;
-		const resolved = resolveHostAudioDeviceId(settings, host, localId);
-		settings.audioDeviceId = resolved.audioDeviceId;
-		settings.audioDeviceIds = resolved.audioDeviceIds;
 
-		let persist = resolved.persist;
+		let persist = false;
+		if (syncsHostAudioDeviceMap()) {
+			const resolved = resolveHostAudioDeviceId(
+				settings,
+				getHostname(),
+				localId
+			);
+			settings.audioDeviceId = resolved.audioDeviceId;
+			settings.audioDeviceIds = resolved.audioDeviceIds;
+			persist = resolved.persist;
+		} else {
+			// Phone/tablet: keep the mic in localStorage only. Do not read or
+			// write audioDeviceIds["mobile"] — that key is shared across devices.
+			settings.audioDeviceId = resolveMobileAudioDeviceId(localId);
+		}
 
 		// Migrate provider setting for existing users
 		if (this.migratePostProcessingProvider(settings)) {
@@ -299,13 +346,14 @@ export class SettingsManager {
 	}
 
 	async saveSettings(settings: PluginSettings): Promise<void> {
-		const host = getHostname();
 		const deviceId = settings.audioDeviceId || "default";
 		const disk = (await this.plugin.loadData()) ?? {};
 		const audioDeviceIds = {
 			...((disk.audioDeviceIds as Record<string, string>) || {}),
-			[host]: deviceId,
 		};
+		if (syncsHostAudioDeviceMap()) {
+			audioDeviceIds[getHostname()] = deviceId;
+		}
 		this.plugin.app.saveLocalStorage(AUDIO_DEVICE_LS_KEY, deviceId);
 		this.syncKeysToSecretStorage(settings);
 		await this.plugin.saveData({
