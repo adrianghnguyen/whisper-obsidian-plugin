@@ -3,7 +3,6 @@ import {
 	DEFAULT_SETTINGS,
 	resolveDesktopHostname,
 	resolveHostAudioDeviceId,
-	resolveMobileAudioDeviceId,
 } from "../src/SettingsManager";
 
 describe("DEFAULT_SETTINGS", () => {
@@ -108,13 +107,28 @@ describe("resolveDesktopHostname", () => {
 	});
 });
 
-describe("resolveMobileAudioDeviceId", () => {
-	it("uses localStorage and ignores synced map leftovers", () => {
-		expect(resolveMobileAudioDeviceId("pixel-mic")).toBe("pixel-mic");
+describe("resolveHostAudioDeviceId mobile key", () => {
+	it("stores and restores a phone mic under the mobile map key", () => {
+		const result = resolveHostAudioDeviceId(
+			{
+				...DEFAULT_SETTINGS,
+				audioDeviceIds: { mobile: "pixel-front-mic" },
+			},
+			"mobile",
+			null
+		);
+		expect(result.audioDeviceId).toBe("pixel-front-mic");
+		expect(result.persist).toBe(false);
 	});
 
-	it("defaults when this phone has no local choice", () => {
-		expect(resolveMobileAudioDeviceId(null)).toBe("default");
-		expect(resolveMobileAudioDeviceId("")).toBe("default");
+	it("migrates localStorage into the mobile map key", () => {
+		const result = resolveHostAudioDeviceId(
+			DEFAULT_SETTINGS,
+			"mobile",
+			"pixel-front-mic"
+		);
+		expect(result.audioDeviceId).toBe("pixel-front-mic");
+		expect(result.audioDeviceIds.mobile).toBe("pixel-front-mic");
+		expect(result.persist).toBe(true);
 	});
 });
