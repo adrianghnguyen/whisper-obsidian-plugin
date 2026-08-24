@@ -181,6 +181,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "start-stop-recording",
 			name: "Start/stop recording",
+			icon: "mic",
 			callback: async () => {
 				if (
 					this.statusBar.status !== RecordingStatus.Recording &&
@@ -232,6 +233,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "cycle-microphone",
 			name: "Cycle microphone",
+			icon: "mic-vocal",
 			callback: () => {
 				void this.statusBar.cycleDevice();
 			},
