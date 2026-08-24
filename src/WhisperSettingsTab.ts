@@ -6,7 +6,13 @@ import {
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
 	ApiKeysSettings,
+	getHostname,
 } from "./SettingsManager";
+import {
+	formatMicrophoneSettingDesc,
+	listInputDevices,
+	resolveOsDefaultDeviceId,
+} from "./audioDevices";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private plugin: Whisper;
@@ -234,17 +240,15 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private async createAudioDeviceSetting(): Promise<void> {
-		const setting = new Setting(this.containerEl)
-			.setName("Microphone")
-			.setDesc(
-				"This machine's microphone. Each computer stores its own choice in the synced settings file."
-			);
+		const setting = new Setting(this.containerEl).setName("Microphone");
 
+		let osDefaultDeviceId: string | null = null;
 		// Request permission first to get device labels (some browsers hide labels until permission is granted)
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: true,
 			});
+			osDefaultDeviceId = resolveOsDefaultDeviceId(stream);
 			// Stop the stream immediately to release the microphone
 			stream.getTracks().forEach((track) => track.stop());
 		} catch (err) {
@@ -254,27 +258,11 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			);
 		}
 
-		// Enumerate devices
-		let devices: MediaDeviceInfo[] = [];
-		try {
-			const allDevices = await navigator.mediaDevices.enumerateDevices();
-			devices = allDevices.filter(
-				(device) => device.kind === "audioinput"
-			);
-		} catch (err) {
-			console.error("Error enumerating audio devices:", err);
-		}
-
-		// Build dropdown options: "default" + all audio input devices
+		const devices = await listInputDevices();
 		const options: Record<string, string> = {};
-		options["default"] = "Default";
-
-		devices.forEach((device) => {
-			const label =
-				device.label ||
-				`Unknown device (${device.deviceId.substring(0, 8)})`;
-			options[device.deviceId] = label;
-		});
+		for (const device of devices) {
+			options[device.id] = device.label;
+		}
 
 		// Get current value, defaulting to "default" if not set or device not found
 		let currentValue = this.plugin.settings.audioDeviceId || "default";
@@ -284,6 +272,15 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.plugin.settings.audioDeviceId = "default";
 			await this.settingsManager.saveSettings(this.plugin.settings);
 		}
+
+		setting.setDesc(
+			formatMicrophoneSettingDesc(
+				getHostname(),
+				currentValue,
+				devices,
+				osDefaultDeviceId
+			)
+		);
 
 		setting.addDropdown((dropdown) => {
 			Object.keys(options).forEach((deviceId) => {
@@ -297,6 +294,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				this.plugin.recorder.setDeviceId(
 					value === "default" ? null : value
 				);
+				this.display();
 			});
 		});
 	}
