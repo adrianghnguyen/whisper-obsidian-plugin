@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
 	DEFAULT_SETTINGS,
+	resolveDesktopHostname,
 	resolveHostAudioDeviceId,
+	resolveMobileAudioDeviceId,
 } from "../src/SettingsManager";
 
 describe("DEFAULT_SETTINGS", () => {
@@ -74,5 +76,45 @@ describe("resolveHostAudioDeviceId", () => {
 		expect(result.audioDeviceId).toBe("flat-hash");
 		expect(result.audioDeviceIds["DESKTOP-A"]).toBe("flat-hash");
 		expect(result.persist).toBe(true);
+	});
+});
+
+describe("resolveDesktopHostname", () => {
+	it("prefers os.hostname on Mac and Windows", () => {
+		expect(
+			resolveDesktopHostname("Adrians-MacBook-Pro.local", {
+				COMPUTERNAME: "DESKTOP-WIN",
+			})
+		).toBe("Adrians-MacBook-Pro.local");
+		expect(resolveDesktopHostname("DESKTOP-C42C606C", {})).toBe(
+			"DESKTOP-C42C606C"
+		);
+	});
+
+	it("falls back to COMPUTERNAME then HOSTNAME", () => {
+		expect(
+			resolveDesktopHostname("", {
+				COMPUTERNAME: "DESKTOP-WIN",
+				HOSTNAME: "linux-box",
+			})
+		).toBe("DESKTOP-WIN");
+		expect(resolveDesktopHostname(undefined, { HOSTNAME: "linux-box" })).toBe(
+			"linux-box"
+		);
+	});
+
+	it("returns unknown when nothing is available", () => {
+		expect(resolveDesktopHostname(undefined, {})).toBe("unknown");
+	});
+});
+
+describe("resolveMobileAudioDeviceId", () => {
+	it("uses localStorage and ignores synced map leftovers", () => {
+		expect(resolveMobileAudioDeviceId("pixel-mic")).toBe("pixel-mic");
+	});
+
+	it("defaults when this phone has no local choice", () => {
+		expect(resolveMobileAudioDeviceId(null)).toBe("default");
+		expect(resolveMobileAudioDeviceId("")).toBe("default");
 	});
 });
