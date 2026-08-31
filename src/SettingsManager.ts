@@ -10,7 +10,7 @@ const SECRET_IDS: Record<keyof ApiKeysSettings, string> = {
 
 export const AUDIO_DEVICE_LS_KEY = "whisper:audioDeviceId";
 
-export type TranscriptionProvider = "openai" | "gemini";
+export type TranscriptionProvider = "openai" | "gemini" | "gemini-live";
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
 
 export const PROVIDER_URLS: Record<PostProcessingProvider, string> = {
@@ -40,6 +40,7 @@ export interface WhisperSettings {
 	apiUrl: string;
 	model: string;
 	geminiModel: string;
+	geminiLiveModel: string;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -87,6 +88,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
 	geminiModel: "gemini-3.5-transcribe-preview",
+	geminiLiveModel: "gemini-3.5-transcribe-live",
 	language: "",
 	prompt: "",
 	temperature: 0,
