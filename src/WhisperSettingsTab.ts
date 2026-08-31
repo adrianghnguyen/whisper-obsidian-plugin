@@ -36,16 +36,34 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		const isGemini =
 			this.plugin.settings.transcriptionProvider === "gemini";
 
-		// --- API Keys ---
+		// --- Provider (first, drives everything below) ---
+		new Setting(containerEl).setName("Provider").setHeading();
+		this.createTranscriptionProviderSetting();
+
+		// --- API Keys (only the relevant ones for the chosen provider) ---
 		new Setting(containerEl).setName("API Keys").setHeading();
-		this.createWhisperApiKeySetting();
-		this.createGeminiApiKeySetting();
-		this.createOpenAiApiKeySetting();
-		this.createAnthropicApiKeySetting();
+		if (isGemini) {
+			this.createGeminiApiKeySetting();
+		} else {
+			this.createWhisperApiKeySetting();
+			// Post-processing keys: show only the relevant one
+			if (this.plugin.settings.postProcessing) {
+				switch (this.plugin.settings.postProcessingProvider) {
+					case "openai":
+						this.createOpenAiApiKeySetting();
+						break;
+					case "anthropic":
+						this.createAnthropicApiKeySetting();
+						break;
+					case "custom":
+						this.createPostProcessingApiKeySetting();
+						break;
+				}
+			}
+		}
 
 		// --- Transcription ---
 		new Setting(containerEl).setName("Transcription").setHeading();
-		this.createTranscriptionProviderSetting();
 		if (isGemini) {
 			this.createGeminiModelSetting();
 		} else {
@@ -83,7 +101,6 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			if (this.plugin.settings.postProcessing) {
 				this.createPostProcessingProviderSetting();
 				this.createPostProcessingUrlSetting();
-				this.createPostProcessingApiKeySetting();
 				this.createPostProcessingModelSetting();
 				this.createPostProcessingPromptSetting();
 				this.createAutoGenerateTitleSetting();
