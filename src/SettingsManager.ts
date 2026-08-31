@@ -366,7 +366,8 @@ export class SettingsManager {
 		}
 
 		if (persist) {
-			await this.persistDiskSettings(settings);
+			// Defer disk writes — saveData during onload can deadlock vault startup.
+			void this.persistDiskSettings(settings);
 		}
 
 		// Populate in-memory settings from SecretStorage

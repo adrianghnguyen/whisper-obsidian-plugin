@@ -2,9 +2,50 @@ import { Notice } from "obsidian";
 import Whisper from "main";
 import { StreamingRecorder } from "./StreamingRecorder";
 import { StreamingEditor } from "./StreamingEditor";
+import {
+	LIVE_WS_URL,
+	audioStreamEndMessage,
+	decodeWsData,
+	parseLiveMessage,
+	realtimeAudioMessage,
+	setupMessage,
+} from "./liveProtocol";
 
-const LIVE_WS_URL =
-	"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+const SETUP_TIMEOUT_MS = 10000;
+const WS_OPEN = 1;
+
+export interface LiveSocket {
+	readyState: number;
+	send(data: string): void;
+	close(): void;
+	onopen: ((ev?: unknown) => void) | null;
+	onmessage: ((ev: { data: unknown }) => void) | null;
+	onerror: ((ev?: unknown) => void) | null;
+	onclose: ((ev: { reason?: string }) => void) | null;
+}
+
+export interface LiveAudioSource {
+	setDeviceId(deviceId: string | null): void;
+	start(
+		onChunk: (base64Pcm: string) => void,
+		onStop?: () => void
+	): Promise<void>;
+	stop(): void;
+}
+
+export interface LiveTranscriptSink {
+	updateInterim(text: string): void;
+	commitFinal(text: string): void;
+	lockInterim(): void;
+	reset(): void;
+}
+
+export interface LiveSessionDeps {
+	createSocket?: (url: string) => LiveSocket;
+	recorder?: LiveAudioSource;
+	editor?: LiveTranscriptSink;
+	flushDelayMs?: number;
+}
 
 /**
  * GeminiLiveTranscriber
@@ -16,15 +57,21 @@ const LIVE_WS_URL =
  */
 export class GeminiLiveTranscriber {
 	private plugin: Whisper;
-	private socket: WebSocket | null = null;
-	private recorder: StreamingRecorder;
-	private editor: StreamingEditor;
+	private socket: LiveSocket | null = null;
+	private recorder: LiveAudioSource;
+	private editor: LiveTranscriptSink;
+	private createSocket: (url: string) => LiveSocket;
+	private flushDelayMs: number;
 	private streamActive = false;
+	private setupComplete = false;
 
-	constructor(plugin: Whisper) {
+	constructor(plugin: Whisper, deps: LiveSessionDeps = {}) {
 		this.plugin = plugin;
-		this.recorder = new StreamingRecorder();
-		this.editor = new StreamingEditor(plugin.app);
+		this.recorder = deps.recorder ?? new StreamingRecorder();
+		this.editor = deps.editor ?? new StreamingEditor(plugin.app);
+		this.createSocket =
+			deps.createSocket ?? ((url) => new WebSocket(url) as LiveSocket);
+		this.flushDelayMs = deps.flushDelayMs ?? 1000;
 	}
 
 	get isActive(): boolean {
@@ -39,10 +86,15 @@ export class GeminiLiveTranscriber {
 			return;
 		}
 
+		const deviceId =
+			this.plugin.settings.audioDeviceId === "default"
+				? null
+				: this.plugin.settings.audioDeviceId;
+		this.recorder.setDeviceId(deviceId);
+
 		try {
 			await this.connectSocket();
 
-			// Start streaming audio chunks over the socket
 			await this.recorder.start((pcmChunk) => {
 				this.sendChunk(pcmChunk);
 			});
@@ -53,40 +105,28 @@ export class GeminiLiveTranscriber {
 			}
 		} catch (err) {
 			console.error("Failed to start live stream:", err);
-			new Notice("✘ Could not start live transcription");
+			const detail = err instanceof Error ? err.message : String(err);
+			new Notice("✘ Could not start live transcription: " + detail);
 			this.cleanup();
 		}
 	}
 
 	async stopStream(): Promise<void> {
-		if (!this.streamActive) return;
+		if (!this.streamActive && !this.socket) return;
 		this.streamActive = false;
 
 		this.recorder.stop();
 
-		// Send the end-of-stream signal to the Live API
-		this.socket?.send(
-			JSON.stringify({
-				realtimeInput: {
-					mediaChunks: [{ data: "", mimeType: "" }],
-				},
-			})
-		);
-		// Signal end of realtime input
-		this.socket?.send(
-			JSON.stringify({
-				realtimeInput: {
-					mediaChunks: [],
-				},
-			})
-		);
+		if (this.socket && this.socket.readyState === WS_OPEN) {
+			this.socket.send(JSON.stringify(audioStreamEndMessage()));
+			if (this.flushDelayMs > 0) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, this.flushDelayMs)
+				);
+			}
+		}
 
-		// Give the server a moment to flush final transcriptions
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-
-		// Lock the last interim text as final (it's already in the editor)
 		this.editor.lockInterim();
-
 		this.editor.reset();
 		this.cleanup();
 		if (this.plugin.settings.debugMode) {
@@ -99,89 +139,123 @@ export class GeminiLiveTranscriber {
 			const wsUrl = `${LIVE_WS_URL}?key=${encodeURIComponent(
 				this.plugin.settings.geminiApiKey
 			)}`;
-			this.socket = new WebSocket(wsUrl);
+			this.socket = this.createSocket(wsUrl);
+			this.setupComplete = false;
+			let settled = false;
 
-			this.socket.onopen = () => {
-				// Send the setup message
-				this.socket?.send(
-					JSON.stringify({
-						setup: {
-							model: `models/${this.plugin.settings.geminiLiveModel}`,
-							generationConfig: {
-								responseModalities: ["TEXT"],
-							},
-							inputAudioTranscription: {},
-						},
-					})
-				);
-				resolve();
+			const finish = (err?: Error) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timeout);
+				if (err) {
+					reject(err);
+				} else {
+					resolve();
+				}
 			};
 
-			this.socket.onerror = (err) => {
-				console.error("WebSocket error:", err);
-				reject(err);
+			const timeout = setTimeout(() => {
+				finish(new Error("Live API setup timed out"));
+			}, SETUP_TIMEOUT_MS);
+
+			this.socket.onopen = () => {
+				this.socket?.send(
+					JSON.stringify(
+						setupMessage(
+							this.plugin.settings.geminiLiveModel,
+							this.plugin.settings.language || undefined
+						)
+					)
+				);
+			};
+
+			this.socket.onerror = () => {
+				finish(new Error("WebSocket connection failed"));
 			};
 
 			this.socket.onmessage = (event) => {
-				this.handleMessage(event.data);
+				void this.onSocketMessage(event.data, finish);
 			};
 
-			this.socket.onclose = () => {
-				this.streamActive = false;
-				this.cleanup();
+			this.socket.onclose = (ev) => {
+				if (!settled) {
+					finish(
+						new Error(
+							ev.reason || "Live API connection closed during setup"
+						)
+					);
+					return;
+				}
+				if (this.streamActive) {
+					new Notice("✘ Live transcription disconnected");
+					this.streamActive = false;
+					this.recorder.stop();
+					this.socket = null;
+				}
 			};
 		});
 	}
 
-	private sendChunk(base64Pcm: string): void {
-		if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-			return;
-		}
-		this.socket.send(
-			JSON.stringify({
-				realtimeInput: {
-					mediaChunks: [
-						{
-							mimeType: "audio/pcm;rate=16000",
-							data: base64Pcm,
-						},
-					],
-				},
-			})
-		);
-	}
-
-	private handleMessage(data: any): void {
-		let msg: any;
+	private async onSocketMessage(
+		data: unknown,
+		finish: (err?: Error) => void
+	): Promise<void> {
+		let text: string;
 		try {
-			msg = JSON.parse(data);
+			text = await decodeWsData(data);
 		} catch {
 			return;
 		}
 
-		const serverContent = msg?.serverContent;
-		if (!serverContent) return;
-
-		// Interim transcriptions (partial hypotheses)
-		if (serverContent.interimInputTranscription?.text) {
-			const text = serverContent.interimInputTranscription.text;
-			if (this.plugin.settings.debugMode) {
-				console.log("[interim]", text);
-			}
-			this.editor.updateInterim(text);
+		let msg: unknown;
+		try {
+			msg = JSON.parse(text);
+		} catch {
+			return;
 		}
 
-		// Finalized transcriptions
-		if (serverContent.inputTranscription?.text) {
-			const text = serverContent.inputTranscription.text;
-			if (this.plugin.settings.debugMode) {
-				console.log("[final]", text);
+		const parsed = parseLiveMessage(msg);
+
+		if (this.plugin.settings.debugMode) {
+			console.log("[gemini-live]", Object.keys(msg as object), parsed);
+		}
+
+		if (parsed.errorMessage) {
+			console.error("Live API error:", parsed.errorMessage);
+			new Notice("✘ Live API: " + parsed.errorMessage);
+			if (!this.setupComplete) {
+				finish(new Error(parsed.errorMessage));
 			}
-			this.editor.commitFinal(text);
+			return;
+		}
+
+		if (parsed.setupComplete) {
+			this.setupComplete = true;
+			finish();
+		}
+
+		if (parsed.interimText) {
+			this.editor.updateInterim(parsed.interimText);
+		}
+
+		if (parsed.finalText) {
+			this.editor.commitFinal(parsed.finalText);
 		}
 	}
 
+	private sendChunk(base64Pcm: string): void {
+		if (
+			!this.setupComplete ||
+			!this.socket ||
+			this.socket.readyState !== WS_OPEN
+		) {
+			return;
+		}
+		this.socket.send(JSON.stringify(realtimeAudioMessage(base64Pcm)));
+	}
+
 	private cleanup(): void {
+		this.setupComplete = false;
 		if (this.socket) {
 			try {
 				this.socket.close();
@@ -189,6 +263,11 @@ export class GeminiLiveTranscriber {
 				// ignore
 			}
 			this.socket = null;
+		}
+		try {
+			this.recorder.stop();
+		} catch {
+			// ignore
 		}
 		this.editor.reset();
 		this.streamActive = false;

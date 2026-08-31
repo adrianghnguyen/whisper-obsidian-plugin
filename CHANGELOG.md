@@ -1,5 +1,13 @@
 
 
+## [1.9.4](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.3...1.9.4) (2026-08-30)
+
+### Bug Fixes
+
+* **Gemini Live now transcribes the microphone.** Starting a live session could connect without sending usable audio, so the editor stayed empty. Whisper waits until the session is ready, streams the selected mic as 16 kHz PCM on the current Live audio channel, and writes interim and final text into the note.
+* **Gemini API and Gemini Live share one Google AI Studio key.** REST and the Live WebSocket use the same key; settings no longer imply a second Google credential.
+* defer settings disk writes during load so vault startup cannot deadlock
+
 ## [1.9.3](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.1...1.9.3) (2026-08-15)
 
 ### Features

@@ -44,7 +44,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		this.createTranscriptionProviderSetting();
 
 		// --- API Keys (only the relevant ones for the chosen provider) ---
-		new Setting(containerEl).setName("API Keys").setHeading();
+		new Setting(containerEl)
+			.setName(isAnyGemini ? "API Key" : "API Keys")
+			.setHeading();
 		if (isAnyGemini) {
 			this.createGeminiApiKeySetting();
 		} else {
@@ -202,7 +204,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private createGeminiApiKeySetting(): void {
 		this.createApiKeySetting(
 			"Gemini API Key",
-			"API key for Gemini transcription (Google AI Studio or Vertex AI)",
+			"One Google AI Studio key for Gemini API and Gemini Live. Google uses the same key for REST and WebSocket.",
 			"AIza...xxxx",
 			this.plugin.settings.geminiApiKey,
 			"geminiApiKey",
@@ -251,7 +253,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Provider")
 			.setDesc(
-				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini uses its API with inline audio. Gemini Live streams in real time."
+				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini API and Gemini Live share one Google AI Studio key. Live streams in real time."
 			)
 			.addDropdown((dropdown) => {
 				for (const [value, label] of Object.entries(providers)) {

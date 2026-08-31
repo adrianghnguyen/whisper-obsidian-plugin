@@ -72,7 +72,7 @@ export class StatusBar {
 			);
 			if (hasRealIds && currentId !== "default") {
 				this.plugin.settings.audioDeviceId = "default";
-				await this.plugin.settingsManager.saveSettings(
+				void this.plugin.settingsManager.saveSettings(
 					this.plugin.settings
 				);
 				this.plugin.recorder.setDeviceId(null);

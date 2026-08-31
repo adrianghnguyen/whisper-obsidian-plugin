@@ -121,6 +121,10 @@ export default class Whisper extends Plugin {
 		// Live streaming path: no modal, no NativeAudioRecorder
 		if (this.settings.transcriptionProvider === "gemini-live") {
 			await this.audioHandler.liveStream.startStream();
+			if (!this.audioHandler.liveStream.isActive) {
+				this.statusBar.updateStatus(RecordingStatus.Idle);
+				return;
+			}
 			this.statusBar.updateStatus(RecordingStatus.Recording);
 			return;
 		}
@@ -162,6 +166,10 @@ export default class Whisper extends Plugin {
 	}
 
 	async pauseRecording() {
+		if (this.settings.transcriptionProvider === "gemini-live") {
+			new Notice("Pause is not available for live streaming");
+			return;
+		}
 		if (this.statusBar.status === RecordingStatus.Recording) {
 			await this.recorder.pauseRecording();
 			this.statusBar.updateStatus(RecordingStatus.Paused);
@@ -178,6 +186,12 @@ export default class Whisper extends Plugin {
 			this.statusBar.status !== RecordingStatus.Recording &&
 			this.statusBar.status !== RecordingStatus.Paused
 		) {
+			return;
+		}
+		if (this.settings.transcriptionProvider === "gemini-live") {
+			await this.audioHandler.liveStream.stopStream();
+			this.statusBar.updateStatus(RecordingStatus.Idle);
+			new Notice("Recording cancelled");
 			return;
 		}
 		await this.recorder.stopRecording();

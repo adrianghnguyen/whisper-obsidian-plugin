@@ -1,3 +1,9 @@
+import {
+	floatToPcm16Base64,
+	resampleTo16k,
+	TARGET_SAMPLE_RATE,
+} from "./liveProtocol";
+
 /**
  * Streaming PCM audio recorder.
  *
@@ -10,6 +16,7 @@ export class StreamingRecorder {
 	private mediaStream: MediaStream | null = null;
 	private source: MediaStreamAudioSourceNode | null = null;
 	private processor: ScriptProcessorNode | null = null;
+	private silentGain: GainNode | null = null;
 	private onChunk: ((base64Pcm: string) => void) | null = null;
 	private onStop: (() => void) | null = null;
 	private isRecording = false;
@@ -37,7 +44,18 @@ export class StreamingRecorder {
 			audio: audioConstraints,
 		});
 
-		this.audioContext = new AudioContext({ sampleRate: 16000 });
+		try {
+			this.audioContext = new AudioContext({
+				sampleRate: TARGET_SAMPLE_RATE,
+			});
+		} catch {
+			this.audioContext = new AudioContext();
+		}
+
+		if (this.audioContext.state === "suspended") {
+			await this.audioContext.resume();
+		}
+
 		this.source = this.audioContext.createMediaStreamSource(
 			this.mediaStream
 		);
@@ -54,27 +72,18 @@ export class StreamingRecorder {
 		this.processor.onaudioprocess = (event) => {
 			if (!this.isRecording) return;
 			const input = event.inputBuffer.getChannelData(0);
-
-			// Convert float32 [-1, 1] to 16-bit PCM little-endian
-			const pcmBuffer = new Int16Array(input.length);
-			for (let i = 0; i < input.length; i++) {
-				const s = Math.max(-1, Math.min(1, input[i]));
-				pcmBuffer[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-			}
-
-			// Base64 encode the PCM bytes
-			const bytes = new Uint8Array(pcmBuffer.buffer);
-			let binary = "";
-			for (let i = 0; i < bytes.length; i++) {
-				binary += String.fromCharCode(bytes[i]);
-			}
-			const base64 = btoa(binary);
-
-			this.onChunk?.(base64);
+			const rate = this.audioContext?.sampleRate || TARGET_SAMPLE_RATE;
+			const resampled = resampleTo16k(input, rate);
+			if (!resampled.length) return;
+			this.onChunk?.(floatToPcm16Base64(resampled));
 		};
 
+		// Keep the processor graph alive without playing the mic through speakers
+		this.silentGain = this.audioContext.createGain();
+		this.silentGain.gain.value = 0;
 		this.source.connect(this.processor);
-		this.processor.connect(this.audioContext.destination);
+		this.processor.connect(this.silentGain);
+		this.silentGain.connect(this.audioContext.destination);
 		this.isRecording = true;
 	}
 
@@ -84,6 +93,7 @@ export class StreamingRecorder {
 
 		this.processor?.disconnect();
 		this.source?.disconnect();
+		this.silentGain?.disconnect();
 
 		if (this.mediaStream) {
 			this.mediaStream.getTracks().forEach((t) => t.stop());
@@ -94,6 +104,7 @@ export class StreamingRecorder {
 		this.mediaStream = null;
 		this.source = null;
 		this.processor = null;
+		this.silentGain = null;
 
 		this.onStop?.();
 	}
