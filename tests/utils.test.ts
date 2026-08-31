@@ -5,7 +5,6 @@ import {
 	getExtensionFromMimeType,
 	resolveTemplate,
 	buildTemplateVariables,
-	getMimeFormat,
 } from "../src/utils";
 
 describe("getBaseFileName", () => {
@@ -158,27 +157,5 @@ describe("buildTemplateVariables", () => {
 		expect(vars.title).toBe("title");
 		expect(vars.transcription).toBe("text");
 		expect(vars.audioFile).toBe("audio.webm");
-	});
-});
-
-describe("getMimeFormat", () => {
-	it("extracts format from standard mime type", () => {
-		expect(getMimeFormat("audio/wav")).toBe("wav");
-	});
-
-	it("strips codecs parameter and returns the base format", () => {
-		expect(getMimeFormat("audio/mp4;codecs=mp4a.40.2")).toBe("mp4");
-	});
-
-	it("maps audio/x-m4a to m4a", () => {
-		expect(getMimeFormat("audio/x-m4a")).toBe("m4a");
-	});
-
-	it("maps audio/mpeg to mp3", () => {
-		expect(getMimeFormat("audio/mpeg")).toBe("mp3");
-	});
-
-	it("defaults to webm for undefined subtype", () => {
-		expect(getMimeFormat("")).toBe("webm");
 	});
 });

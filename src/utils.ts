@@ -81,16 +81,3 @@ export function blobToBase64(blob: Blob): Promise<string> {
 		reader.readAsDataURL(blob);
 	});
 }
-
-export function getMimeFormat(mimeType: string): string {
-	const base = mimeType.split(";")[0];
-	const subtype = base.split("/")[1] || "webm";
-	// Map common Obsidian/generic types to formats Gemini understands
-	const formatMap: Record<string, string> = {
-		"x-m4a": "m4a",
-		"mp4a.40.2": "m4a",
-		mpeg: "mp3",
-		mpga: "mp3",
-	};
-	return formatMap[subtype] || subtype;
-}
