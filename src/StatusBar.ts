@@ -16,7 +16,6 @@ export class StatusBar {
 	private listeners: Array<(status: RecordingStatus) => void> = [];
 	private deviceLabel = "Default";
 	private permissionRequested = false;
-	private charCount = 0;
 
 	constructor(plugin: Whisper) {
 		this.plugin = plugin;
@@ -39,16 +38,8 @@ export class StatusBar {
 
 	updateStatus(status: RecordingStatus) {
 		this.status = status;
-		if (status !== RecordingStatus.Recording) {
-			this.charCount = 0;
-		}
 		this.updateStatusBarItem();
 		this.listeners.forEach((fn) => fn(status));
-	}
-
-	setCharCount(count: number) {
-		this.charCount = count;
-		this.updateStatusBarItem();
 	}
 
 	shortLabel(label: string): string {
@@ -129,7 +120,7 @@ export class StatusBar {
 		let color = "green";
 		switch (this.status) {
 			case RecordingStatus.Recording:
-				text = `Recording · ${this.charCount} chars · ${short}`;
+				text = `Recording · ${short}`;
 				color = "red";
 				break;
 			case RecordingStatus.Paused:
