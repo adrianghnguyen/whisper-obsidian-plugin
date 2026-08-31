@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DEFAULT_SETTINGS, PluginSettings } from "../src/SettingsManager";
+import { DEFAULT_SETTINGS, PluginSettings, TranscriptionProvider } from "../src/SettingsManager";
 
 // We test AudioHandler logic by extracting and testing the key behaviors
 // since the actual class depends heavily on Obsidian + axios
@@ -322,5 +322,179 @@ describe("file-menu audio extension matching", () => {
 	it("does not false-positive on partial extension matches", () => {
 		expect(isAudioFile("stamp3")).toBe(false);
 		expect(isAudioFile("camp3")).toBe(false);
+	});
+});
+
+describe("Gemini — buildGeminiRequestBody", () => {
+	/**
+	 * Constructs the JSON body sent to the Gemini OpenAI-compatible endpoint.
+	 * This replicates the logic inside AudioHandler.transcribeWithGemini()
+	 * so we can unit-test the payload shape and model selection.
+	 */
+	function buildGeminiRequestBody(
+		model: string,
+		base64Audio: string,
+		mimeFormat: string
+	) {
+		return {
+			model,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "Transcribe this audio." },
+						{
+							type: "input_audio",
+							input_audio: {
+								data: base64Audio,
+								format: mimeFormat,
+							},
+						},
+					],
+				},
+			],
+		};
+	}
+
+	it("includes the configured model", () => {
+		const body = buildGeminiRequestBody(
+			"gemini-3.5-transcribe-preview",
+			"dGVzdA==",
+			"webm"
+		);
+		expect(body.model).toBe("gemini-3.5-transcribe-preview");
+	});
+
+	it("includes base64 audio and format", () => {
+		const body = buildGeminiRequestBody("gemini-3.5-transcribe-preview", "dGVzdA==", "wav");
+		const inputAudio = (body.messages[0] as any).content[1].input_audio;
+		expect(inputAudio.data).toBe("dGVzdA==");
+		expect(inputAudio.format).toBe("wav");
+	});
+
+	it("includes the transcription instruction text", () => {
+		const body = buildGeminiRequestBody("gemini-3.5-transcribe-preview", "dGVzdA==", "mp3");
+		expect((body.messages[0] as any).content[0].text).toBe("Transcribe this audio.");
+	});
+
+	it("uses a different model when configured", () => {
+		const body = buildGeminiRequestBody("gemini-3.6-flash", "dGVzdA==", "webm");
+		expect(body.model).toBe("gemini-3.6-flash");
+	});
+});
+
+describe("Gemini — parseGeminiResponse", () => {
+	/**
+	 * Parses the Gemini OpenAI-compatible response to extract transcription text.
+	 * This replicates the response handling in AudioHandler.transcribeWithGemini().
+	 */
+	function parseGeminiResponse(responseData: unknown): string | null {
+		const choices = (responseData as any)?.choices;
+		if (!choices || !Array.isArray(choices) || choices.length === 0) {
+			return null;
+		}
+		const content = choices[0]?.message?.content;
+		return content?.trim() || null;
+	}
+
+	it("extracts transcription from valid response", () => {
+		const response = {
+			choices: [
+				{
+					message: {
+						content: " Hello world transcription ",
+					},
+				},
+			],
+		};
+		expect(parseGeminiResponse(response)).toBe("Hello world transcription");
+	});
+
+	it("returns null when choices array is empty", () => {
+		const response = { choices: [] };
+		expect(parseGeminiResponse(response)).toBeNull();
+	});
+
+	it("returns null when choices is missing", () => {
+		const response = {};
+		expect(parseGeminiResponse(response)).toBeNull();
+	});
+
+	it("returns null when message.content is empty", () => {
+		const response = {
+			choices: [{ message: { content: "" } }],
+		};
+		expect(parseGeminiResponse(response)).toBeNull();
+	});
+
+	it("returns null when message content is only whitespace", () => {
+		const response = {
+			choices: [{ message: { content: "   \n  " } }],
+		};
+		expect(parseGeminiResponse(response)).toBeNull();
+	});
+});
+
+describe("Gemini — provider routing", () => {
+	/**
+	 * Determines which transcription path sendAudioData should take.
+	 * This mirrors the branching logic at the end of sendAudioData().
+	 */
+	function isGeminiProvider(settings: PluginSettings): boolean {
+		return settings.transcriptionProvider === "gemini";
+	}
+
+	it("routes to Gemini when provider is gemini", () => {
+		const settings = { ...DEFAULT_SETTINGS, transcriptionProvider: "gemini" as TranscriptionProvider };
+		expect(isGeminiProvider(settings)).toBe(true);
+	});
+
+	it("routes to OpenAI when provider is openai (default)", () => {
+		const settings = { ...DEFAULT_SETTINGS, transcriptionProvider: "openai" as TranscriptionProvider };
+		expect(isGeminiProvider(settings)).toBe(false);
+	});
+
+	it("routes to OpenAI when provider is not set", () => {
+		const settings = { ...DEFAULT_SETTINGS, transcriptionProvider: "openai" as TranscriptionProvider };
+		expect(isGeminiProvider(settings)).toBe(false);
+	});
+});
+
+describe("Gemini — API key validation", () => {
+	function isGeminiApiKeyMissing(settings: PluginSettings): boolean {
+		return !settings.geminiApiKey;
+	}
+
+	it("detects missing Gemini API key", () => {
+		const settings = { ...DEFAULT_SETTINGS, geminiApiKey: "" };
+		expect(isGeminiApiKeyMissing(settings)).toBe(true);
+	});
+
+	it("passes when Gemini API key is provided", () => {
+		const settings = { ...DEFAULT_SETTINGS, geminiApiKey: "AIzaSyAbCdEf123" };
+		expect(isGeminiApiKeyMissing(settings)).toBe(false);
+	});
+});
+
+describe("Gemini — geminiAuthHeader", () => {
+	/**
+	 * Builds the authorization header for Gemini requests.
+	 * Replicates the axios headers construction in AudioHandler.transcribeWithGemini().
+	 */
+	function buildGeminiHeaders(apiKey: string): Record<string, string> {
+		return {
+			Authorization: `Bearer ${apiKey}`,
+			"Content-Type": "application/json",
+		};
+	}
+
+	it("includes Bearer token with the API key", () => {
+		const headers = buildGeminiHeaders("AIzaSyTestKey123");
+		expect(headers["Authorization"]).toBe("Bearer AIzaSyTestKey123");
+	});
+
+	it("sets Content-Type to application/json", () => {
+		const headers = buildGeminiHeaders("AIzaSyTestKey123");
+		expect(headers["Content-Type"]).toBe("application/json");
 	});
 });

@@ -5,10 +5,12 @@ const SECRET_IDS: Record<keyof ApiKeysSettings, string> = {
 	openAiApiKey: "openai-api-key",
 	anthropicApiKey: "anthropic-api-key",
 	postProcessingApiKey: "post-processing-api-key",
+	geminiApiKey: "gemini-api-key",
 };
 
 export const AUDIO_DEVICE_LS_KEY = "whisper:audioDeviceId";
 
+export type TranscriptionProvider = "openai" | "gemini";
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
 
 export const PROVIDER_URLS: Record<PostProcessingProvider, string> = {
@@ -28,12 +30,16 @@ export interface ApiKeysSettings {
 	openAiApiKey: string;
 	anthropicApiKey: string;
 	postProcessingApiKey: string;
+	geminiApiKey: string;
 }
 
 export interface WhisperSettings {
+	// Provider
+	transcriptionProvider: TranscriptionProvider;
 	// API
 	apiUrl: string;
 	model: string;
+	geminiModel: string;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -73,11 +79,14 @@ export const DEFAULT_API_KEYS: ApiKeysSettings = {
 	openAiApiKey: "",
 	anthropicApiKey: "",
 	postProcessingApiKey: "",
+	geminiApiKey: "",
 };
 
 export const DEFAULT_WHISPER: WhisperSettings = {
+	transcriptionProvider: "openai",
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
+	geminiModel: "gemini-3.5-transcribe-preview",
 	language: "",
 	prompt: "",
 	temperature: 0,
@@ -280,6 +289,7 @@ export class SettingsManager {
 			openAiApiKey: "",
 			anthropicApiKey: "",
 			postProcessingApiKey: "",
+			geminiApiKey: "",
 		};
 		return this.plugin.saveData(toSave);
 	}

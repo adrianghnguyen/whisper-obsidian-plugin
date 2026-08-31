@@ -2,6 +2,7 @@ import Whisper from "main";
 import { App, PluginSettingTab, Setting } from "obsidian";
 import {
 	SettingsManager,
+	TranscriptionProvider,
 	PostProcessingProvider,
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
@@ -32,21 +33,30 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 
+		const isGemini =
+			this.plugin.settings.transcriptionProvider === "gemini";
+
 		// --- API Keys ---
 		new Setting(containerEl).setName("API Keys").setHeading();
 		this.createWhisperApiKeySetting();
+		this.createGeminiApiKeySetting();
 		this.createOpenAiApiKeySetting();
 		this.createAnthropicApiKeySetting();
 
 		// --- Transcription ---
 		new Setting(containerEl).setName("Transcription").setHeading();
-		this.createApiUrlSetting();
-		this.createModelSetting();
-		this.createLanguageSetting();
-		this.createPromptSetting();
-		this.createSendCursorContextSetting();
-		this.createTemperatureSetting();
-		this.createResponseFormatSetting();
+		this.createTranscriptionProviderSetting();
+		if (isGemini) {
+			this.createGeminiModelSetting();
+		} else {
+			this.createApiUrlSetting();
+			this.createModelSetting();
+			this.createLanguageSetting();
+			this.createPromptSetting();
+			this.createSendCursorContextSetting();
+			this.createTemperatureSetting();
+			this.createResponseFormatSetting();
+		}
 
 		// --- Recording ---
 		new Setting(containerEl).setName("Recording").setHeading();
@@ -66,18 +76,20 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createNoteTemplateSetting();
 		}
 
-		// --- Post-Processing ---
-		new Setting(containerEl).setName("Post-processing").setHeading();
-		this.createPostProcessingToggleSetting();
-		if (this.plugin.settings.postProcessing) {
-			this.createPostProcessingProviderSetting();
-			this.createPostProcessingUrlSetting();
-			this.createPostProcessingApiKeySetting();
-			this.createPostProcessingModelSetting();
-			this.createPostProcessingPromptSetting();
-			this.createAutoGenerateTitleSetting();
-			this.createTitleGenerationPromptSetting();
-			this.createKeepOriginalTranscriptionSetting();
+		// --- Post-Processing (hidden for Gemini) ---
+		if (!isGemini) {
+			new Setting(containerEl).setName("Post-processing").setHeading();
+			this.createPostProcessingToggleSetting();
+			if (this.plugin.settings.postProcessing) {
+				this.createPostProcessingProviderSetting();
+				this.createPostProcessingUrlSetting();
+				this.createPostProcessingApiKeySetting();
+				this.createPostProcessingModelSetting();
+				this.createPostProcessingPromptSetting();
+				this.createAutoGenerateTitleSetting();
+				this.createTitleGenerationPromptSetting();
+				this.createKeepOriginalTranscriptionSetting();
+			}
 		}
 
 		// --- Advanced ---
@@ -159,6 +171,20 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		);
 	}
 
+	private createGeminiApiKeySetting(): void {
+		this.createApiKeySetting(
+			"Gemini API Key",
+			"API key for Gemini transcription (Google AI Studio or Vertex AI)",
+			"AIza...xxxx",
+			this.plugin.settings.geminiApiKey,
+			"geminiApiKey",
+			async (value) => {
+				this.plugin.settings.geminiApiKey = value;
+				await this.settingsManager.saveSettings(this.plugin.settings);
+			}
+		);
+	}
+
 	private createOpenAiApiKeySetting(): void {
 		this.createApiKeySetting(
 			"OpenAI API Key",
@@ -182,6 +208,45 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			"anthropicApiKey",
 			async (value) => {
 				this.plugin.settings.anthropicApiKey = value;
+				await this.settingsManager.saveSettings(this.plugin.settings);
+			}
+		);
+	}
+
+	private createTranscriptionProviderSetting(): void {
+		const providers: Record<TranscriptionProvider, string> = {
+			openai: "OpenAI (Whisper)",
+			gemini: "Gemini API",
+		};
+
+		new Setting(this.containerEl)
+			.setName("Provider")
+			.setDesc(
+				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini uses its API with inline audio."
+			)
+			.addDropdown((dropdown) => {
+				for (const [value, label] of Object.entries(providers)) {
+					dropdown.addOption(value, label);
+				}
+				dropdown
+					.setValue(this.plugin.settings.transcriptionProvider)
+					.onChange(async (value) => {
+						this.plugin.settings.transcriptionProvider =
+							value as TranscriptionProvider;
+						await this.save();
+						this.display();
+					});
+			});
+	}
+
+	private createGeminiModelSetting(): void {
+		this.createTextSetting(
+			"Gemini model",
+			"Model ID for Gemini transcription (e.g. gemini-3.5-transcribe-preview)",
+			"gemini-3.5-transcribe-preview",
+			this.plugin.settings.geminiModel,
+			async (value) => {
+				this.plugin.settings.geminiModel = value;
 				await this.settingsManager.saveSettings(this.plugin.settings);
 			}
 		);

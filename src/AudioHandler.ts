@@ -6,6 +6,8 @@ import {
 	getCursorContext,
 	buildTemplateVariables,
 	resolveTemplate,
+	blobToBase64,
+	getMimeFormat,
 } from "./utils";
 import { PostProcessor } from "./PostProcessor";
 
@@ -46,27 +48,154 @@ export class AudioHandler {
 				: ""
 		}${fileName}`;
 
-		const noteFilePath = `${
-			this.plugin.settings.noteSavePath
-				? `${this.plugin.settings.noteSavePath}/`
-				: ""
-		}${baseFileName}.md`;
-
 		if (this.plugin.settings.debugMode) {
 			new Notice(`Sending ${Math.round(blob.size / 1000)} KB...`);
-		}
-
-		const isDefaultApi =
-			this.plugin.settings.apiUrl ===
-			"https://api.openai.com/v1/audio/transcriptions";
-		if (isDefaultApi && !this.plugin.settings.apiKey) {
-			new Notice("✘ Add your API key in Whisper settings");
-			return;
 		}
 
 		const MIN_AUDIO_SIZE_BYTES = 1000;
 		if (blob.size < MIN_AUDIO_SIZE_BYTES) {
 			new Notice("✘ Recording too short");
+			return;
+		}
+
+		// Save audio file first (shared by both providers)
+		try {
+			if (this.plugin.settings.saveAudioFile) {
+				await this.ensureFolderExists(
+					this.plugin.settings.audioSavePath
+				);
+				const arrayBuffer = await blob.arrayBuffer();
+				await this.plugin.app.vault.adapter.writeBinary(
+					audioFilePath,
+					new Uint8Array(arrayBuffer)
+				);
+			}
+		} catch (err) {
+			console.error("Error saving audio file:", err);
+			new Notice(
+				"✘ Couldn't save audio: " +
+					(err instanceof Error ? err.message : String(err))
+			);
+		}
+
+		// Branch: Gemini vs OpenAI transcription
+		if (this.plugin.settings.transcriptionProvider === "gemini") {
+			await this.transcribeWithGemini(blob, baseFileName, audioFilePath);
+		} else {
+			await this.transcribeWithOpenAI(
+				blob,
+				fileName,
+				baseFileName,
+				audioFilePath
+			);
+		}
+	}
+
+	/**
+	 * Gemini API transcription path.
+	 *
+	 * Uses the Gemini API via its OpenAI-compatible endpoint
+	 * (`generativelanguage.googleapis.com/v1beta/openai/chat/completions`).
+	 * Audio is sent as base64 inline data in the `input_audio` content block.
+	 *
+	 * Gemini returns clean transcriptions natively, so post-processing
+	 * is intentionally skipped.
+	 */
+	private async transcribeWithGemini(
+		blob: Blob,
+		baseFileName: string,
+		audioFilePath: string
+	): Promise<void> {
+		if (!this.plugin.settings.geminiApiKey) {
+			new Notice("✘ Add your Gemini API key in settings");
+			return;
+		}
+
+		try {
+			if (this.plugin.settings.debugMode) {
+				new Notice("Transcribing with Gemini...");
+			}
+
+			const base64Audio = await blobToBase64(blob);
+			const mimeFormat = getMimeFormat(blob.type || "audio/webm");
+
+			const geminiBaseUrl =
+				"https://generativelanguage.googleapis.com/v1beta/openai";
+			const response = await axios.post(
+				`${geminiBaseUrl}/chat/completions`,
+				{
+					model: this.plugin.settings.geminiModel,
+					messages: [
+						{
+							role: "user",
+							content: [
+								{ type: "text", text: "Transcribe this audio." },
+								{
+									type: "input_audio",
+									input_audio: {
+										data: base64Audio,
+										format: mimeFormat,
+									},
+								},
+							],
+						},
+					],
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${this.plugin.settings.geminiApiKey}`,
+						"Content-Type": "application/json",
+					},
+				}
+			);
+
+			const finalText: string =
+				response.data.choices?.[0]?.message?.content?.trim() || "";
+			if (!finalText) {
+				new Notice("✘ Gemini returned empty transcription");
+				return;
+			}
+
+			// Gemini path skips post-processing — the model outputs clean
+			// transcriptions natively. Also skips auto-title generation for
+			// simplicity; the user can configure note templates to their liking.
+			let generatedTitle = baseFileName;
+
+			await this.handleOutput(
+				finalText,
+				generatedTitle,
+				audioFilePath,
+				baseFileName
+			);
+
+			new Notice("Transcription complete");
+		} catch (err) {
+			console.error("Gemini transcription error:", err);
+			new Notice(
+				"✘ Gemini transcription failed: " +
+					(err instanceof Error ? err.message : String(err))
+			);
+		}
+	}
+
+	/**
+	 * OpenAI-compatible Whisper endpoint path.
+	 *
+	 * Uses multipart FormData upload to the configured API URL
+	 * (default https://api.openai.com/v1/audio/transcriptions).
+	 * Supports optional LLM post-processing and auto-title generation.
+	 */
+	private async transcribeWithOpenAI(
+		blob: Blob,
+		fileName: string,
+		baseFileName: string,
+		audioFilePath: string
+	): Promise<void> {
+		const isDefaultApi =
+			this.plugin.settings.apiUrl ===
+			"https://api.openai.com/v1/audio/transcriptions";
+		if (isDefaultApi && !this.plugin.settings.apiKey) {
+			new Notice("✘ Add your API key in Whisper settings");
 			return;
 		}
 
@@ -103,27 +232,6 @@ export class AudioHandler {
 				"response_format",
 				this.plugin.settings.responseFormat
 			);
-
-		try {
-			// If the saveAudioFile setting is true, save the audio file
-			if (this.plugin.settings.saveAudioFile) {
-				await this.ensureFolderExists(
-					this.plugin.settings.audioSavePath
-				);
-				const arrayBuffer = await blob.arrayBuffer();
-				await this.plugin.app.vault.adapter.writeBinary(
-					audioFilePath,
-					new Uint8Array(arrayBuffer)
-				);
-				// No notice for intermediate save — final "Transcription complete" covers it
-			}
-		} catch (err) {
-			console.error("Error saving audio file:", err);
-			new Notice(
-				"✘ Couldn't save audio: " +
-					(err instanceof Error ? err.message : String(err))
-			);
-		}
 
 		try {
 			if (this.plugin.settings.debugMode) {
@@ -217,58 +325,12 @@ export class AudioHandler {
 					? `${finalText}\n\n---\n\n*Original transcription:*\n${originalText}`
 					: finalText;
 
-			if (this.plugin.settings.createNoteFile) {
-				await this.ensureFolderExists(
-					this.plugin.settings.noteSavePath
-				);
-
-				const vars = buildTemplateVariables(
-					outputText,
-					generatedTitle,
-					audioFilePath
-				);
-
-				// Resolve filename template
-				const resolvedFilename =
-					resolveTemplate(
-						this.plugin.settings.noteFilenameTemplate,
-						vars
-					)
-						.replace(/[/\\?%*:|"<>\n]/g, "-")
-						.trim() || baseFileName;
-
-				const folder = this.plugin.settings.noteSavePath;
-				const resolvedNoteFilePath = `${
-					folder ? `${folder}/` : ""
-				}${resolvedFilename}.md`;
-
-				// Resolve note content template
-				const noteContent = resolveTemplate(
-					this.plugin.settings.noteTemplate,
-					vars
-				).trim();
-
-				await this.plugin.app.vault.create(
-					resolvedNoteFilePath,
-					noteContent
-				);
-			}
-
-			// Paste at cursor if there's an active editor
-			const editor =
-				this.plugin.app.workspace.getActiveViewOfType(
-					MarkdownView
-				)?.editor;
-			if (editor) {
-				const cursorPosition = editor.getCursor();
-				editor.replaceRange(outputText, cursorPosition);
-
-				const newPosition = {
-					line: cursorPosition.line,
-					ch: cursorPosition.ch + outputText.length,
-				};
-				editor.setCursor(newPosition);
-			}
+			await this.handleOutput(
+				outputText,
+				generatedTitle,
+				audioFilePath,
+				baseFileName
+			);
 
 			new Notice("Transcription complete");
 		} catch (err) {
@@ -277,6 +339,67 @@ export class AudioHandler {
 				"✘ Transcription failed: " +
 					(err instanceof Error ? err.message : String(err))
 			);
+		}
+	}
+
+	/**
+	 * Shared output handling: create note file and paste at cursor.
+	 */
+	private async handleOutput(
+		outputText: string,
+		generatedTitle: string,
+		audioFilePath: string,
+		baseFileName: string
+	): Promise<void> {
+		if (this.plugin.settings.createNoteFile) {
+			await this.ensureFolderExists(
+				this.plugin.settings.noteSavePath
+			);
+
+			const vars = buildTemplateVariables(
+				outputText,
+				generatedTitle,
+				audioFilePath
+			);
+
+			const resolvedFilename =
+				resolveTemplate(
+					this.plugin.settings.noteFilenameTemplate,
+					vars
+				)
+					.replace(/[/\\?%*:|"<>\n]/g, "-")
+					.trim() || baseFileName;
+
+			const folder = this.plugin.settings.noteSavePath;
+			const resolvedNoteFilePath = `${
+				folder ? `${folder}/` : ""
+			}${resolvedFilename}.md`;
+
+			const noteContent = resolveTemplate(
+				this.plugin.settings.noteTemplate,
+				vars
+			).trim();
+
+			await this.plugin.app.vault.create(
+				resolvedNoteFilePath,
+				noteContent
+			);
+		}
+
+		// Paste at cursor if there's an active editor
+		const editor =
+			this.plugin.app.workspace.getActiveViewOfType(
+				MarkdownView
+			)?.editor;
+		if (editor) {
+			const cursorPosition = editor.getCursor();
+			editor.replaceRange(outputText, cursorPosition);
+
+			const newPosition = {
+				line: cursorPosition.line,
+				ch: cursorPosition.ch + outputText.length,
+			};
+			editor.setCursor(newPosition);
 		}
 	}
 }

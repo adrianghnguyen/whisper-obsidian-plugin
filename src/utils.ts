@@ -67,3 +67,30 @@ export function getBaseFileName(filePath: string) {
 	const dotIndex = fileName.lastIndexOf(".");
 	return dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
 }
+
+export function blobToBase64(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onloadend = () => {
+			const result = reader.result as string;
+			// Strip the data URL prefix (e.g. "data:audio/webm;base64,")
+			const base64 = result.split(",")[1];
+			resolve(base64);
+		};
+		reader.onerror = reject;
+		reader.readAsDataURL(blob);
+	});
+}
+
+export function getMimeFormat(mimeType: string): string {
+	const base = mimeType.split(";")[0];
+	const subtype = base.split("/")[1] || "webm";
+	// Map common Obsidian/generic types to formats Gemini understands
+	const formatMap: Record<string, string> = {
+		"x-m4a": "m4a",
+		"mp4a.40.2": "m4a",
+		mpeg: "mp3",
+		mpga: "mp3",
+	};
+	return formatMap[subtype] || subtype;
+}
