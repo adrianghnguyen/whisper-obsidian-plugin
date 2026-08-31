@@ -117,6 +117,14 @@ export default class Whisper extends Plugin {
 			new Notice("Already recording");
 			return;
 		}
+
+		// Live streaming path: no modal, no NativeAudioRecorder
+		if (this.settings.transcriptionProvider === "gemini-live") {
+			await this.audioHandler.liveStream.startStream();
+			this.statusBar.updateStatus(RecordingStatus.Recording);
+			return;
+		}
+
 		try {
 			await this.recorder.startRecording();
 			this.statusBar.updateStatus(RecordingStatus.Recording);
@@ -134,6 +142,15 @@ export default class Whisper extends Plugin {
 		) {
 			return;
 		}
+
+		// Live streaming path
+		if (this.settings.transcriptionProvider === "gemini-live") {
+			this.statusBar.updateStatus(RecordingStatus.Processing);
+			await this.audioHandler.liveStream.stopStream();
+			this.statusBar.updateStatus(RecordingStatus.Idle);
+			return;
+		}
+
 		this.statusBar.updateStatus(RecordingStatus.Processing);
 		const audioBlob = await this.recorder.stopRecording();
 		const extension = getExtensionFromMimeType(this.recorder.getMimeType());

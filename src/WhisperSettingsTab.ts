@@ -35,6 +35,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		const isGemini =
 			this.plugin.settings.transcriptionProvider === "gemini";
+		const isGeminiLive =
+			this.plugin.settings.transcriptionProvider === "gemini-live";
+		const isAnyGemini = isGemini || isGeminiLive;
 
 		// --- Provider (first, drives everything below) ---
 		new Setting(containerEl).setName("Provider").setHeading();
@@ -42,7 +45,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- API Keys (only the relevant ones for the chosen provider) ---
 		new Setting(containerEl).setName("API Keys").setHeading();
-		if (isGemini) {
+		if (isAnyGemini) {
 			this.createGeminiApiKeySetting();
 		} else {
 			this.createWhisperApiKeySetting();
@@ -64,7 +67,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- Transcription ---
 		new Setting(containerEl).setName("Transcription").setHeading();
-		if (isGemini) {
+		if (isGeminiLive) {
+			this.createGeminiLiveModelSetting();
+		} else if (isGemini) {
 			this.createGeminiModelSetting();
 		} else {
 			this.createApiUrlSetting();
@@ -94,8 +99,8 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createNoteTemplateSetting();
 		}
 
-		// --- Post-Processing (hidden for Gemini) ---
-		if (!isGemini) {
+		// --- Post-Processing (hidden for Gemini paths) ---
+		if (!isAnyGemini) {
 			new Setting(containerEl).setName("Post-processing").setHeading();
 			this.createPostProcessingToggleSetting();
 			if (this.plugin.settings.postProcessing) {
@@ -234,12 +239,13 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		const providers: Record<TranscriptionProvider, string> = {
 			openai: "OpenAI (Whisper)",
 			gemini: "Gemini API",
+			"gemini-live": "Gemini Live (Streaming)",
 		};
 
 		new Setting(this.containerEl)
 			.setName("Provider")
 			.setDesc(
-				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini uses its API with inline audio."
+				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini uses its API with inline audio. Gemini Live streams in real time."
 			)
 			.addDropdown((dropdown) => {
 				for (const [value, label] of Object.entries(providers)) {
@@ -254,6 +260,19 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						this.display();
 					});
 			});
+	}
+
+	private createGeminiLiveModelSetting(): void {
+		this.createTextSetting(
+			"Gemini model",
+			"Model ID for Gemini Live streaming (e.g. gemini-3.5-transcribe-live)",
+			"gemini-3.5-transcribe-live",
+			this.plugin.settings.geminiLiveModel,
+			async (value) => {
+				this.plugin.settings.geminiLiveModel = value;
+				await this.settingsManager.saveSettings(this.plugin.settings);
+			}
+		);
 	}
 
 	private createGeminiModelSetting(): void {
