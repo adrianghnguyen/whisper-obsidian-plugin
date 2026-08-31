@@ -8,16 +8,23 @@ import {
 import { Transcriber } from "./transcribers/Transcriber";
 import { OpenAiTranscriber } from "./transcribers/OpenAiTranscriber";
 import { GeminiTranscriber } from "./transcribers/GeminiTranscriber";
+import { GeminiLiveTranscriber } from "./transcribers/GeminiLiveTranscriber";
 
 export class AudioHandler {
 	private plugin: Whisper;
 	private openAi: OpenAiTranscriber;
 	private gemini: GeminiTranscriber;
+	private geminiLive: GeminiLiveTranscriber;
 
 	constructor(plugin: Whisper) {
 		this.plugin = plugin;
 		this.openAi = new OpenAiTranscriber();
 		this.gemini = new GeminiTranscriber();
+		this.geminiLive = new GeminiLiveTranscriber(plugin);
+	}
+
+	get liveStream(): GeminiLiveTranscriber {
+		return this.geminiLive;
 	}
 
 	private getTranscriber(): Transcriber {
