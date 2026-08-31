@@ -7,6 +7,7 @@ import { SettingsManager, PluginSettings } from "src/SettingsManager";
 import { NativeAudioRecorder } from "src/AudioRecorder";
 import { RecordingStatus, StatusBar } from "src/StatusBar";
 import { getExtensionFromMimeType } from "src/utils";
+import { liveHighlightExtension } from "src/transcribers/liveHighlight";
 export default class Whisper extends Plugin {
 	settings: PluginSettings;
 	settingsManager: SettingsManager;
@@ -25,6 +26,8 @@ export default class Whisper extends Plugin {
 		});
 
 		this.addSettingTab(new WhisperSettingsTab(this.app, this));
+
+		this.registerEditorExtension(liveHighlightExtension);
 
 		this.timer = new Timer();
 		this.audioHandler = new AudioHandler(this);

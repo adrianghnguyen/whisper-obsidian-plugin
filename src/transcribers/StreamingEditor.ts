@@ -1,4 +1,15 @@
 import { App, Editor, MarkdownView } from "obsidian";
+import type { EditorView } from "@codemirror/view";
+import {
+	clearLiveHighlight,
+	isValidHighlightColor,
+	setLiveHighlight,
+} from "./liveHighlight";
+
+export interface LiveHighlightConfig {
+	enabled: boolean;
+	color: string;
+}
 
 /**
  * Manages streaming text insertion into the active editor.
@@ -9,9 +20,17 @@ import { App, Editor, MarkdownView } from "obsidian";
 export class StreamingEditor {
 	private interimAnchor: { line: number; ch: number } | null = null;
 	private app: App;
+	private getHighlightConfig: () => LiveHighlightConfig;
 
-	constructor(app: App) {
+	constructor(
+		app: App,
+		getHighlightConfig: () => LiveHighlightConfig = () => ({
+			enabled: false,
+			color: "",
+		})
+	) {
 		this.app = app;
+		this.getHighlightConfig = getHighlightConfig;
 	}
 
 	/**
@@ -41,6 +60,7 @@ export class StreamingEditor {
 			ch: from.ch + text.length,
 		};
 		editor.setCursor(newPos);
+		this.syncInterimHighlight(editor, from, newPos);
 	}
 
 	/**
@@ -73,6 +93,7 @@ export class StreamingEditor {
 		}
 
 		this.interimAnchor = null;
+		this.clearInterimHighlight();
 	}
 
 	/**
@@ -82,6 +103,7 @@ export class StreamingEditor {
 	 */
 	lockInterim(): void {
 		this.interimAnchor = null;
+		this.clearInterimHighlight();
 	}
 
 	/**
@@ -89,10 +111,53 @@ export class StreamingEditor {
 	 */
 	reset(): void {
 		this.interimAnchor = null;
+		this.clearInterimHighlight();
+	}
+
+	private syncInterimHighlight(
+		editor: Editor,
+		from: { line: number; ch: number },
+		to: { line: number; ch: number }
+	): void {
+		const config = this.getHighlightConfig();
+		if (!config.enabled || !isValidHighlightColor(config.color)) {
+			this.clearInterimHighlight();
+			return;
+		}
+
+		const view = this.getEditorView();
+		if (!view) return;
+
+		const fromOffset = editor.posToOffset(from);
+		const toOffset = editor.posToOffset(to);
+		if (fromOffset >= toOffset) {
+			clearLiveHighlight(view);
+			return;
+		}
+
+		setLiveHighlight(view, {
+			from: fromOffset,
+			to: toOffset,
+			color: config.color,
+		});
+	}
+
+	private clearInterimHighlight(): void {
+		const view = this.getEditorView();
+		if (view) {
+			clearLiveHighlight(view);
+		}
 	}
 
 	private getEditor(): Editor | null {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		return view?.editor || null;
+	}
+
+	private getEditorView(): EditorView | null {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) return null;
+		const cm = (view.editor as { cm?: EditorView }).cm;
+		return cm ?? null;
 	}
 }

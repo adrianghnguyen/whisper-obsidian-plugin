@@ -15,6 +15,8 @@
 	"author": "Nik Danilov",
 	"license": "MIT",
 	"devDependencies": {
+		"@codemirror/state": "^6.5.0",
+		"@codemirror/view": "^6.38.6",
 		"@commitlint/cli": "^17.6.5",
 		"@commitlint/config-conventional": "^17.6.5",
 		"@release-it/conventional-changelog": "^5.1.1",
