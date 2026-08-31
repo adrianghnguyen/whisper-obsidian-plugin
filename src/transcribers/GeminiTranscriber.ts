@@ -54,9 +54,9 @@ export class GeminiTranscriber implements Transcriber {
 			);
 		}
 
-		// Interactions API returns output_text, not candidates[].content.parts[].text
+		// Interactions API returns text in steps[0].content[0].text
 		const text: string =
-			response.data?.output_text?.trim() || "";
+			response.data?.steps?.[0]?.content?.[0]?.text?.trim() || "";
 		if (!text) {
 			console.error("Gemini response:", JSON.stringify(response.data));
 			new Notice("✘ Gemini returned empty transcription");
