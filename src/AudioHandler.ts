@@ -1,31 +1,31 @@
-import axios from "axios";
 import Whisper from "main";
 import { Notice, MarkdownView } from "obsidian";
 import {
 	getBaseFileName,
-	getCursorContext,
 	buildTemplateVariables,
 	resolveTemplate,
-	blobToBase64,
-	getMimeFormat,
 } from "./utils";
-import { PostProcessor } from "./PostProcessor";
+import { Transcriber } from "./transcribers/Transcriber";
+import { OpenAiTranscriber } from "./transcribers/OpenAiTranscriber";
+import { GeminiTranscriber } from "./transcribers/GeminiTranscriber";
 
 export class AudioHandler {
 	private plugin: Whisper;
+	private openAi: OpenAiTranscriber;
+	private gemini: GeminiTranscriber;
 
 	constructor(plugin: Whisper) {
 		this.plugin = plugin;
+		this.openAi = new OpenAiTranscriber();
+		this.gemini = new GeminiTranscriber();
 	}
 
-	private getPostProcessingApiKey(): string {
-		switch (this.plugin.settings.postProcessingProvider) {
-			case "anthropic":
-				return this.plugin.settings.anthropicApiKey;
-			case "openai":
-				return this.plugin.settings.openAiApiKey;
-			case "custom":
-				return this.plugin.settings.postProcessingApiKey;
+	private getTranscriber(): Transcriber {
+		switch (this.plugin.settings.transcriptionProvider) {
+			case "gemini":
+				return this.gemini;
+			default:
+				return this.openAi;
 		}
 	}
 
@@ -39,7 +39,6 @@ export class AudioHandler {
 	}
 
 	async sendAudioData(blob: Blob, fileName: string): Promise<void> {
-		// Get the base file name without extension
 		const baseFileName = getBaseFileName(fileName);
 
 		const audioFilePath = `${
@@ -78,251 +77,34 @@ export class AudioHandler {
 			);
 		}
 
-		// Branch: Gemini vs OpenAI transcription
-		if (this.plugin.settings.transcriptionProvider === "gemini") {
-			await this.transcribeWithGemini(blob, baseFileName, audioFilePath);
-		} else {
-			await this.transcribeWithOpenAI(
+		try {
+			const transcriber = this.getTranscriber();
+			const result = await transcriber.transcribe(
+				this.plugin,
 				blob,
 				fileName,
-				baseFileName,
-				audioFilePath
-			);
-		}
-	}
-
-	/**
-	 * Gemini API transcription path.
-	 *
-	 * Uses the Gemini API via its OpenAI-compatible endpoint
-	 * (`generativelanguage.googleapis.com/v1beta/openai/chat/completions`).
-	 * Audio is sent as base64 inline data in the `input_audio` content block.
-	 *
-	 * Gemini returns clean transcriptions natively, so post-processing
-	 * is intentionally skipped.
-	 */
-	private async transcribeWithGemini(
-		blob: Blob,
-		baseFileName: string,
-		audioFilePath: string
-	): Promise<void> {
-		if (!this.plugin.settings.geminiApiKey) {
-			new Notice("✘ Add your Gemini API key in settings");
-			return;
-		}
-
-		try {
-			if (this.plugin.settings.debugMode) {
-				new Notice("Transcribing with Gemini...");
-			}
-
-			const base64Audio = await blobToBase64(blob);
-			const mimeFormat = getMimeFormat(blob.type || "audio/webm");
-
-			const geminiBaseUrl =
-				"https://generativelanguage.googleapis.com/v1beta/openai";
-			const response = await axios.post(
-				`${geminiBaseUrl}/chat/completions`,
-				{
-					model: this.plugin.settings.geminiModel,
-					messages: [
-						{
-							role: "user",
-							content: [
-								{ type: "text", text: "Transcribe this audio." },
-								{
-									type: "input_audio",
-									input_audio: {
-										data: base64Audio,
-										format: mimeFormat,
-									},
-								},
-							],
-						},
-					],
-				},
-				{
-					headers: {
-						Authorization: `Bearer ${this.plugin.settings.geminiApiKey}`,
-						"Content-Type": "application/json",
-					},
-				}
-			);
-
-			const finalText: string =
-				response.data.choices?.[0]?.message?.content?.trim() || "";
-			if (!finalText) {
-				new Notice("✘ Gemini returned empty transcription");
-				return;
-			}
-
-			// Gemini path skips post-processing — the model outputs clean
-			// transcriptions natively. Also skips auto-title generation for
-			// simplicity; the user can configure note templates to their liking.
-			let generatedTitle = baseFileName;
-
-			await this.handleOutput(
-				finalText,
-				generatedTitle,
-				audioFilePath,
 				baseFileName
 			);
 
-			new Notice("Transcription complete");
-		} catch (err) {
-			console.error("Gemini transcription error:", err);
-			new Notice(
-				"✘ Gemini transcription failed: " +
-					(err instanceof Error ? err.message : String(err))
-			);
-		}
-	}
+			let finalText = result.text;
 
-	/**
-	 * OpenAI-compatible Whisper endpoint path.
-	 *
-	 * Uses multipart FormData upload to the configured API URL
-	 * (default https://api.openai.com/v1/audio/transcriptions).
-	 * Supports optional LLM post-processing and auto-title generation.
-	 */
-	private async transcribeWithOpenAI(
-		blob: Blob,
-		fileName: string,
-		baseFileName: string,
-		audioFilePath: string
-	): Promise<void> {
-		const isDefaultApi =
-			this.plugin.settings.apiUrl ===
-			"https://api.openai.com/v1/audio/transcriptions";
-		if (isDefaultApi && !this.plugin.settings.apiKey) {
-			new Notice("✘ Add your API key in Whisper settings");
-			return;
-		}
-
-		const formData = new FormData();
-		formData.append("file", blob, fileName);
-		formData.append("model", this.plugin.settings.model);
-		if (
-			this.plugin.settings.language &&
-			this.plugin.settings.language !== "auto"
-		) {
-			formData.append("language", this.plugin.settings.language);
-		}
-
-		let prompt = this.plugin.settings.prompt || "";
-		if (this.plugin.settings.cursorContext) {
-			const editor =
-				this.plugin.app.workspace.getActiveViewOfType(
-					MarkdownView
-				)?.editor;
-			if (editor) {
-				const context = getCursorContext(editor);
-				prompt = prompt ? `${prompt}\n${context}` : context;
-			}
-		}
-		if (prompt) formData.append("prompt", prompt);
-
-		if (this.plugin.settings.temperature !== 0)
-			formData.append(
-				"temperature",
-				String(this.plugin.settings.temperature)
-			);
-		if (this.plugin.settings.responseFormat !== "json")
-			formData.append(
-				"response_format",
-				this.plugin.settings.responseFormat
-			);
-
-		try {
-			if (this.plugin.settings.debugMode) {
-				new Notice("Transcribing...");
-			}
-			const response = await axios.post(
-				this.plugin.settings.apiUrl,
-				formData,
-				{
-					headers: {
-						"Content-Type": "multipart/form-data",
-						...(this.plugin.settings.apiKey
-							? {
-									Authorization: `Bearer ${this.plugin.settings.apiKey}`,
-							  }
-							: {}),
-					},
-				}
-			);
-
-			const originalText: string = response.data.text;
-			let finalText = originalText;
-
-			// Post-process with LLM if enabled
-			if (this.plugin.settings.postProcessing) {
-				const ppApiKey = this.getPostProcessingApiKey();
-				if (!ppApiKey) {
-					new Notice(
-						"✘ Add your post-processing API key in settings"
-					);
-					return;
-				}
-				try {
-					if (this.plugin.settings.debugMode) {
-						new Notice("Post-processing...");
-					}
-					const processor = new PostProcessor({
-						apiKey: ppApiKey,
-						model: this.plugin.settings.postProcessingModel,
-						url: this.plugin.settings.postProcessingUrl,
-						provider: this.plugin.settings.postProcessingProvider,
-					});
-					finalText = await processor.process(
-						originalText,
-						this.plugin.settings.postProcessingPrompt
-					);
-				} catch (err) {
-					console.error("Post-processing failed:", err);
-					new Notice(
-						"✘ Post-processing failed, using original transcription"
-					);
-					finalText = originalText;
-				}
-			}
-
-			// Auto-generate title for the note filename
+			// Auto-generate title (OpenAI path only — Gemini skips this)
 			let generatedTitle = baseFileName;
 			if (
+				this.plugin.settings.transcriptionProvider === "openai" &&
 				this.plugin.settings.autoGenerateTitle &&
 				this.plugin.settings.createNoteFile
 			) {
-				const ppApiKey = this.getPostProcessingApiKey();
-				if (ppApiKey) {
-					try {
-						const processor = new PostProcessor({
-							apiKey: ppApiKey,
-							model: this.plugin.settings.postProcessingModel,
-							url: this.plugin.settings.postProcessingUrl,
-							provider: this.plugin.settings.postProcessingProvider,
-						});
-						const title = await processor.process(
-							finalText,
-							this.plugin.settings.titleGenerationPrompt
-						);
-						const sanitizedTitle = title
-							.replace(/[/\\?%*:|"<>\n]/g, "-")
-							.trim();
-						if (sanitizedTitle) {
-							generatedTitle = sanitizedTitle;
-						}
-					} catch (err) {
-						console.error("Title generation failed:", err);
-					}
-				}
+				generatedTitle = await this.generateTitle(finalText, baseFileName);
 			}
 
 			// Build note content with templates
 			const outputText =
+				this.plugin.settings.transcriptionProvider === "openai" &&
 				this.plugin.settings.keepOriginalTranscription &&
-				finalText !== originalText
-					? `${finalText}\n\n---\n\n*Original transcription:*\n${originalText}`
+				result.originalText &&
+				finalText !== result.originalText
+					? `${finalText}\n\n---\n\n*Original transcription:*\n${result.originalText}`
 					: finalText;
 
 			await this.handleOutput(
@@ -334,17 +116,59 @@ export class AudioHandler {
 
 			new Notice("Transcription complete");
 		} catch (err) {
-			console.error("Error parsing audio:", err);
-			new Notice(
-				"✘ Transcription failed: " +
-					(err instanceof Error ? err.message : String(err))
-			);
+			console.error("Transcription error:", err);
+			// Don't show a notice for errors that already displayed one
+			if (
+				!(err instanceof Error && err.message.startsWith("Missing"))
+			) {
+				new Notice(
+					"✘ Transcription failed: " +
+						(err instanceof Error ? err.message : String(err))
+				);
+			}
 		}
 	}
 
-	/**
-	 * Shared output handling: create note file and paste at cursor.
-	 */
+	private async generateTitle(
+		text: string,
+		baseFileName: string
+	): Promise<string> {
+		const ppApiKey = this.getPostProcessingApiKey();
+		if (!ppApiKey) return baseFileName;
+
+		try {
+			const { PostProcessor } = await import("./PostProcessor");
+			const processor = new PostProcessor({
+				apiKey: ppApiKey,
+				model: this.plugin.settings.postProcessingModel,
+				url: this.plugin.settings.postProcessingUrl,
+				provider: this.plugin.settings.postProcessingProvider,
+			});
+			const title = await processor.process(
+				text,
+				this.plugin.settings.titleGenerationPrompt
+			);
+			const sanitized = title
+				.replace(/[/\\?%*:|"<>\n]/g, "-")
+				.trim();
+			return sanitized || baseFileName;
+		} catch (err) {
+			console.error("Title generation failed:", err);
+			return baseFileName;
+		}
+	}
+
+	private getPostProcessingApiKey(): string {
+		switch (this.plugin.settings.postProcessingProvider) {
+			case "anthropic":
+				return this.plugin.settings.anthropicApiKey;
+			case "openai":
+				return this.plugin.settings.openAiApiKey;
+			case "custom":
+				return this.plugin.settings.postProcessingApiKey;
+		}
+	}
+
 	private async handleOutput(
 		outputText: string,
 		generatedTitle: string,
@@ -386,7 +210,6 @@ export class AudioHandler {
 			);
 		}
 
-		// Paste at cursor if there's an active editor
 		const editor =
 			this.plugin.app.workspace.getActiveViewOfType(
 				MarkdownView
