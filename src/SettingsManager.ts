@@ -1,7 +1,16 @@
 import { Platform, Plugin } from "obsidian";
+import {
+	LEGACY_WHISPER_SECRET_ID,
+	migrateLegacyWhisperSecretId,
+	resolveWhisperApiKey,
+} from "./whisperApiKey";
 
-const SECRET_IDS: Record<keyof ApiKeysSettings, string> = {
-	apiKey: "api-key",
+export { LEGACY_WHISPER_SECRET_ID };
+
+const SECRET_IDS: Record<
+	Exclude<keyof ApiKeysSettings, "apiKey">,
+	string
+> = {
 	openAiApiKey: "openai-api-key",
 	anthropicApiKey: "anthropic-api-key",
 	postProcessingApiKey: "post-processing-api-key",
@@ -37,6 +46,7 @@ export interface WhisperSettings {
 	// Provider
 	transcriptionProvider: TranscriptionProvider;
 	// API
+	whisperApiKeySecretId: string;
 	apiUrl: string;
 	model: string;
 	geminiModel: string;
@@ -85,6 +95,7 @@ export const DEFAULT_API_KEYS: ApiKeysSettings = {
 
 export const DEFAULT_WHISPER: WhisperSettings = {
 	transcriptionProvider: "openai",
+	whisperApiKeySecretId: "",
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
 	geminiModel: "gemini-3.5-transcribe-preview",
@@ -207,8 +218,14 @@ export class SettingsManager {
 		// One-time migration: move plain-text keys out of data.json into SecretStorage.
 		// Only runs for legacy installs that still have keys in data.json.
 		let migrated = false;
+		if (settings.apiKey) {
+			this.secrets.setSecret(LEGACY_WHISPER_SECRET_ID, settings.apiKey);
+			settings.apiKey = "";
+			settings.whisperApiKeySecretId = LEGACY_WHISPER_SECRET_ID;
+			migrated = true;
+		}
 		for (const [field, secretId] of Object.entries(SECRET_IDS)) {
-			const key = field as keyof ApiKeysSettings;
+			const key = field as Exclude<keyof ApiKeysSettings, "apiKey">;
 			if (settings[key]) {
 				this.secrets.setSecret(secretId, settings[key]);
 				settings[key] = "";
@@ -222,8 +239,10 @@ export class SettingsManager {
 		// Write non-empty in-memory keys to SecretStorage. An empty value does
 		// not overwrite an existing secret (settings rebuilds used to wipe keys).
 		// Strip keys from the settings object so they never land in data.json.
+		// Whisper transcription keys are managed via SecretComponent instead.
+		settings.apiKey = "";
 		for (const [field, secretId] of Object.entries(SECRET_IDS)) {
-			const key = field as keyof ApiKeysSettings;
+			const key = field as Exclude<keyof ApiKeysSettings, "apiKey">;
 			const value = settings[key];
 			if (!value) {
 				const existing = this.secrets.getSecret(secretId);
@@ -237,7 +256,15 @@ export class SettingsManager {
 		}
 	}
 
-	clearApiKey(settings: PluginSettings, field: keyof ApiKeysSettings): void {
+	clearWhisperApiKeySecret(settings: PluginSettings): void {
+		settings.whisperApiKeySecretId = "";
+		settings.apiKey = "";
+	}
+
+	clearApiKey(
+		settings: PluginSettings,
+		field: Exclude<keyof ApiKeysSettings, "apiKey">
+	): void {
 		const secretId = SECRET_IDS[field];
 		settings[field] = "";
 		const secrets = this.secrets as {
@@ -253,8 +280,12 @@ export class SettingsManager {
 	}
 
 	private loadKeysFromSecretStorage(settings: PluginSettings): void {
+		settings.apiKey = resolveWhisperApiKey(
+			this.secrets,
+			settings.whisperApiKeySecretId
+		);
 		for (const [field, secretId] of Object.entries(SECRET_IDS)) {
-			const key = field as keyof ApiKeysSettings;
+			const key = field as Exclude<keyof ApiKeysSettings, "apiKey">;
 			settings[key] = this.secrets.getSecret(secretId) ?? "";
 		}
 	}
@@ -287,6 +318,7 @@ export class SettingsManager {
 				...(settings.audioDeviceIds || {}),
 				[host]: deviceId,
 			},
+			whisperApiKeySecretId: settings.whisperApiKeySecretId,
 			apiKey: "",
 			openAiApiKey: "",
 			anthropicApiKey: "",
@@ -326,6 +358,10 @@ export class SettingsManager {
 
 		// One-time migration of any plain-text keys left in data.json
 		if (this.migrateKeysFromDataJson(settings)) {
+			persist = true;
+		}
+
+		if (migrateLegacyWhisperSecretId(settings, this.secrets)) {
 			persist = true;
 		}
 

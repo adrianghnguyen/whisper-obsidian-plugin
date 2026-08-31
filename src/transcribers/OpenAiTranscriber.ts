@@ -4,6 +4,7 @@ import Whisper from "main";
 import { getCursorContext } from "../utils";
 import { PostProcessor } from "../PostProcessor";
 import { Transcriber, TranscribeResult } from "./Transcriber";
+import { isWhisperApiKeyRequired } from "../whisperApiKey";
 
 export class OpenAiTranscriber implements Transcriber {
 	async transcribe(
@@ -15,7 +16,7 @@ export class OpenAiTranscriber implements Transcriber {
 		const isDefaultApi =
 			plugin.settings.apiUrl ===
 			"https://api.openai.com/v1/audio/transcriptions";
-		if (isDefaultApi && !plugin.settings.apiKey) {
+		if (isWhisperApiKeyRequired(plugin.settings.apiUrl, plugin.settings.apiKey)) {
 			new Notice("✘ Add your API key in Whisper settings");
 			throw new Error("Missing API key");
 		}
