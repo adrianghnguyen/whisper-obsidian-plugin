@@ -20,14 +20,33 @@ describe("setupMessage", () => {
 		});
 	});
 
-	it("keeps an existing models/ prefix and adds language", () => {
-		const msg = setupMessage("models/gemini-3.5-transcribe-live", "en");
+	it("adds language codes when provided", () => {
+		const msg = setupMessage("models/gemini-3.5-transcribe-live", {
+			languageCodes: ["en"],
+		});
 		expect((msg.setup as any).model).toBe(
 			"models/gemini-3.5-transcribe-live"
 		);
 		expect((msg.setup as any).inputAudioTranscription.languageCodes).toEqual(
 			["en"]
 		);
+	});
+
+	it("adds systemInstruction, mode, and customVocabulary when provided", () => {
+		const msg = setupMessage("gemini-3.5-transcribe-live", {
+			languageCodes: ["en"],
+			transcriptionMode: "verbatim",
+			customVocabulary: ["ZyntriQix", "Digique Plus"],
+			systemPrompt: "Translate speech to French.",
+		});
+		expect((msg.setup as any).systemInstruction).toEqual({
+			parts: [{ text: "Translate speech to French." }],
+		});
+		expect((msg.setup as any).inputAudioTranscription).toEqual({
+			mode: "verbatim",
+			languageCodes: ["en"],
+			customVocabulary: ["ZyntriQix", "Digique Plus"],
+		});
 	});
 });
 

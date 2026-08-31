@@ -7,6 +7,7 @@ import {
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
 	ApiKeysSettings,
+	GeminiTranscriptionMode,
 	getHostname,
 } from "./SettingsManager";
 import {
@@ -14,6 +15,11 @@ import {
 	listInputDevices,
 	resolveOsDefaultDeviceId,
 } from "./audioDevices";
+import {
+	DEFAULT_LIVE_HIGHLIGHT_COLOR,
+	LIVE_HIGHLIGHT_PRESETS,
+	normalizeHighlightColor,
+} from "./transcribers/liveHighlight";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private plugin: Whisper;
@@ -67,13 +73,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			}
 		}
 
-		// --- Transcription ---
-		new Setting(containerEl).setName("Transcription").setHeading();
-		if (isGeminiLive) {
-			this.createGeminiLiveModelSetting();
-		} else if (isGemini) {
-			this.createGeminiModelSetting();
-		} else {
+		// --- Transcription (OpenAI only) ---
+		if (!isAnyGemini) {
+			new Setting(containerEl).setName("Transcription").setHeading();
 			this.createApiUrlSetting();
 			this.createModelSetting();
 			this.createLanguageSetting();
@@ -118,6 +120,32 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- Advanced ---
 		new Setting(containerEl).setName("Advanced").setHeading();
+		if (isGeminiLive) {
+			new Setting(containerEl)
+				.setName("Gemini Live — API config")
+				.setHeading();
+			this.createGeminiLiveModelSetting();
+			this.createGeminiLiveTranscriptionModeSetting();
+			this.createGeminiLiveLanguageCodesSetting();
+			this.createGeminiLiveCustomVocabularySetting();
+			this.createGeminiLiveSystemInstructionSetting();
+			new Setting(containerEl)
+				.setName("Gemini Live — editor")
+				.setHeading();
+			this.createLiveInterimHighlightSettings();
+		} else if (isGemini) {
+			new Setting(containerEl)
+				.setName("Gemini API — API config")
+				.setHeading();
+			this.createGeminiModelSetting();
+			this.createGeminiTranscriptionModeSetting();
+			this.createGeminiLanguageCodesSetting();
+			this.createGeminiCustomVocabularySetting();
+			if (this.plugin.settings.geminiTranscriptionMode === "verbatim") {
+				this.createGeminiDiarizationSetting();
+				this.createGeminiWordTimestampsSetting();
+			}
+		}
 		this.createDebugModeToggleSetting();
 
 		this.rebuilding = false;
@@ -283,6 +311,157 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		);
 	}
 
+	private createGeminiLiveSystemInstructionSetting(): void {
+		new Setting(this.containerEl)
+			.setName("System instruction")
+			.setDesc(
+				"Optional Live API systemInstruction: translation, formatting rules, and other directives for the streaming session."
+			)
+			.addTextArea((text) => {
+				text
+					.setPlaceholder("Translate speech to French.")
+					.setValue(this.plugin.settings.geminiLiveSystemPrompt)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiLiveSystemPrompt = value;
+						await this.save();
+					});
+				text.inputEl.rows = 6;
+				text.inputEl.cols = 50;
+			});
+	}
+
+	private createGeminiLiveTranscriptionModeSetting(): void {
+		this.createTranscriptionModeSetting(
+			"Transcription mode",
+			"Smart removes filler words and formats text. Verbatim preserves exact speech.",
+			this.plugin.settings.geminiLiveTranscriptionMode,
+			async (value) => {
+				this.plugin.settings.geminiLiveTranscriptionMode = value;
+				await this.save();
+			}
+		);
+	}
+
+	private createGeminiLiveLanguageCodesSetting(): void {
+		this.createTextSetting(
+			"Language codes",
+			"Comma-separated BCP-47 codes (e.g. en-US, fr-CA). Leave empty for auto-detect.",
+			"en-US",
+			this.plugin.settings.geminiLiveLanguageCodes,
+			async (value) => {
+				this.plugin.settings.geminiLiveLanguageCodes = value;
+				await this.save();
+			}
+		);
+	}
+
+	private createGeminiLiveCustomVocabularySetting(): void {
+		new Setting(this.containerEl)
+			.setName("Custom vocabulary")
+			.setDesc(
+				"Terms sent as inputAudioTranscription.customVocabulary (one per line or comma-separated, up to 1000)."
+			)
+			.addTextArea((text) => {
+				text
+					.setPlaceholder("Gemini\nKubernetes\nBigQuery")
+					.setValue(this.plugin.settings.geminiLiveCustomVocabulary)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiLiveCustomVocabulary = value;
+						await this.save();
+					});
+				text.inputEl.rows = 4;
+				text.inputEl.cols = 50;
+			});
+	}
+
+	private createLiveInterimHighlightSettings(): void {
+		new Setting(this.containerEl)
+			.setName("Highlight live text")
+			.setDesc(
+				"Show a background on interim (in-progress) transcription while Gemini Live is streaming."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.liveInterimHighlight)
+					.onChange(async (value) => {
+						this.plugin.settings.liveInterimHighlight = value;
+						await this.save();
+						this.display();
+					})
+			);
+
+		if (!this.plugin.settings.liveInterimHighlight) {
+			return;
+		}
+
+		const currentColor = this.plugin.settings.liveInterimHighlightColor;
+		const presetMatch = Object.entries(LIVE_HIGHLIGHT_PRESETS).find(
+			([, hex]) => hex.toLowerCase() === currentColor.toLowerCase()
+		);
+
+		new Setting(this.containerEl)
+			.setName("Highlight color preset")
+			.setDesc("Quick-pick a semi-transparent color for light and dark themes.")
+			.addDropdown((dropdown) => {
+				dropdown.addOption("custom", "Custom");
+				for (const [label, hex] of Object.entries(LIVE_HIGHLIGHT_PRESETS)) {
+					dropdown.addOption(hex, label);
+				}
+				dropdown
+					.setValue(presetMatch ? presetMatch[1] : "custom")
+					.onChange(async (value) => {
+						if (value === "custom") return;
+						this.plugin.settings.liveInterimHighlightColor = value;
+						await this.save();
+						this.display();
+					});
+			});
+
+		new Setting(this.containerEl)
+			.setName("Highlight color")
+			.setDesc("Hex color (#RRGGBB or #RRGGBBAA). Invalid values fall back to light grey.")
+			.addText((text) => {
+				text
+					.setPlaceholder(DEFAULT_LIVE_HIGHLIGHT_COLOR)
+					.setValue(currentColor)
+					.onChange(async (value) => {
+						if (this.rebuilding) return;
+						this.plugin.settings.liveInterimHighlightColor =
+							normalizeHighlightColor(value);
+						await this.save();
+					});
+			})
+			.addExtraButton((button) => {
+				button.setIcon("palette").setTooltip("Pick color");
+				const input = document.createElement("input");
+				input.type = "color";
+				input.value = this.toColorInputValue(currentColor);
+				input.style.width = "0";
+				input.style.height = "0";
+				input.style.opacity = "0";
+				input.style.position = "absolute";
+				input.addEventListener("change", () => {
+					const hex = this.fromColorInputValue(input.value);
+					this.plugin.settings.liveInterimHighlightColor = hex;
+					void this.save().then(() => this.display());
+				});
+				button.extraSettingsEl.appendChild(input);
+				button.onClick(() => input.click());
+			});
+	}
+
+	private toColorInputValue(hex: string): string {
+		const normalized = normalizeHighlightColor(hex);
+		return normalized.slice(0, 7);
+	}
+
+	private fromColorInputValue(value: string): string {
+		if (!value.startsWith("#") || value.length !== 7) {
+			return DEFAULT_LIVE_HIGHLIGHT_COLOR;
+		}
+		return `${value}66`;
+	}
+
 	private createGeminiModelSetting(): void {
 		this.createTextSetting(
 			"Gemini model",
@@ -294,6 +473,101 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				await this.settingsManager.saveSettings(this.plugin.settings);
 			}
 		);
+	}
+
+	private createGeminiTranscriptionModeSetting(): void {
+		this.createTranscriptionModeSetting(
+			"Transcription mode",
+			"Smart cleans up speech for readability. Verbatim preserves exact words and enables diarization/timestamps.",
+			this.plugin.settings.geminiTranscriptionMode,
+			async (value) => {
+				this.plugin.settings.geminiTranscriptionMode = value;
+				await this.save();
+				this.display();
+			}
+		);
+	}
+
+	private createGeminiLanguageCodesSetting(): void {
+		this.createTextSetting(
+			"Language codes",
+			"Comma-separated BCP-47 codes sent as transcription_config.language_codes. Leave empty for auto-detect.",
+			"en-US",
+			this.plugin.settings.geminiLanguageCodes,
+			async (value) => {
+				this.plugin.settings.geminiLanguageCodes = value;
+				await this.save();
+			}
+		);
+	}
+
+	private createGeminiCustomVocabularySetting(): void {
+		new Setting(this.containerEl)
+			.setName("Custom vocabulary")
+			.setDesc(
+				"Terms sent as transcription_config.custom_vocabulary (one per line or comma-separated, up to 1000)."
+			)
+			.addTextArea((text) => {
+				text
+					.setPlaceholder("ZyntriQix, Digique Plus, gemini-3.5-transcribe")
+					.setValue(this.plugin.settings.geminiCustomVocabulary)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiCustomVocabulary = value;
+						await this.save();
+					});
+				text.inputEl.rows = 4;
+				text.inputEl.cols = 50;
+			});
+	}
+
+	private createGeminiDiarizationSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Speaker diarization")
+			.setDesc(
+				"Label speakers in verbatim batch transcription (transcription_config.mode.diarization_mode)."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.geminiDiarization)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiDiarization = value;
+						await this.save();
+					})
+			);
+	}
+
+	private createGeminiWordTimestampsSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Word timestamps")
+			.setDesc(
+				"Include word-level timestamps in verbatim batch transcription (may reduce accuracy)."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.geminiWordTimestamps)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiWordTimestamps = value;
+						await this.save();
+					})
+			);
+	}
+
+	private createTranscriptionModeSetting(
+		name: string,
+		desc: string,
+		value: GeminiTranscriptionMode,
+		onChange: (value: GeminiTranscriptionMode) => Promise<void>
+	): void {
+		new Setting(this.containerEl)
+			.setName(name)
+			.setDesc(desc)
+			.addDropdown((dropdown) => {
+				dropdown.addOption("smart", "Smart");
+				dropdown.addOption("verbatim", "Verbatim");
+				dropdown.setValue(value).onChange(async (next) => {
+					await onChange(next as GeminiTranscriptionMode);
+				});
+			});
 	}
 
 	private createApiUrlSetting(): void {

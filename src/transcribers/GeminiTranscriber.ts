@@ -1,7 +1,72 @@
 import axios from "axios";
 import { Notice } from "obsidian";
 import Whisper from "main";
+import {
+	parseCommaOrLineList,
+	parseLanguageCodes,
+} from "./geminiPrompt";
 import { Transcriber, TranscribeResult } from "./Transcriber";
+import type { GeminiTranscriptionMode } from "../SettingsManager";
+
+export interface GeminiInteractionPayload {
+	model: string;
+	input: Array<Record<string, string>>;
+	generation_config: {
+		transcription_config: Record<string, unknown>;
+	};
+}
+
+export interface GeminiBatchSettings {
+	geminiModel: string;
+	geminiTranscriptionMode: GeminiTranscriptionMode;
+	geminiLanguageCodes: string;
+	geminiCustomVocabulary: string;
+	geminiDiarization: boolean;
+	geminiWordTimestamps: boolean;
+}
+
+export function buildGeminiInteractionPayload(
+	settings: GeminiBatchSettings,
+	base64Audio: string,
+	mimeType: string
+): GeminiInteractionPayload {
+	const customVocabulary = parseCommaOrLineList(settings.geminiCustomVocabulary);
+	const languageCodes = parseLanguageCodes(settings.geminiLanguageCodes);
+
+	const mode: Record<string, unknown> = {
+		type: settings.geminiTranscriptionMode,
+	};
+	if (settings.geminiTranscriptionMode === "verbatim") {
+		if (settings.geminiDiarization) {
+			mode.diarization_mode = "speaker";
+		}
+		if (settings.geminiWordTimestamps) {
+			mode.timestamp_granularities = ["word"];
+		}
+	}
+
+	const transcriptionConfig: Record<string, unknown> = { mode };
+	if (customVocabulary.length) {
+		transcriptionConfig.custom_vocabulary = customVocabulary;
+	}
+	if (languageCodes.length) {
+		transcriptionConfig.language_codes = languageCodes;
+	}
+
+	return {
+		model: settings.geminiModel,
+		input: [
+			{
+				type: "audio",
+				data: base64Audio,
+				mime_type: mimeType,
+			},
+		],
+		generation_config: {
+			transcription_config: transcriptionConfig,
+		},
+	};
+}
 
 export class GeminiTranscriber implements Transcriber {
 	async transcribe(
@@ -26,19 +91,15 @@ export class GeminiTranscriber implements Transcriber {
 			new Notice("Sending to Gemini Interactions API...");
 		}
 
+		const payload = buildGeminiInteractionPayload(
+			plugin.settings,
+			base64Audio,
+			mimeType
+		);
+
 		const response = await axios.post(
 			"https://generativelanguage.googleapis.com/v1beta/interactions",
-			{
-				model: plugin.settings.geminiModel,
-				input: [
-					{ type: "text", text: "Transcribe this audio." },
-					{
-						type: "audio",
-						data: base64Audio,
-						mime_type: mimeType,
-					},
-				],
-			},
+			payload,
 			{
 				headers: {
 					"x-goog-api-key": plugin.settings.geminiApiKey,
@@ -54,7 +115,6 @@ export class GeminiTranscriber implements Transcriber {
 			);
 		}
 
-		// Interactions API returns text in steps[0].content[0].text
 		const text: string =
 			response.data?.steps?.[0]?.content?.[0]?.text?.trim() || "";
 		if (!text) {

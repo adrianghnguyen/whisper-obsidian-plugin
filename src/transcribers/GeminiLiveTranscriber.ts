@@ -10,6 +10,10 @@ import {
 	realtimeAudioMessage,
 	setupMessage,
 } from "./liveProtocol";
+import {
+	parseCommaOrLineList,
+	parseLanguageCodes,
+} from "./geminiPrompt";
 
 const SETUP_TIMEOUT_MS = 10000;
 const WS_OPEN = 1;
@@ -68,7 +72,12 @@ export class GeminiLiveTranscriber {
 	constructor(plugin: Whisper, deps: LiveSessionDeps = {}) {
 		this.plugin = plugin;
 		this.recorder = deps.recorder ?? new StreamingRecorder();
-		this.editor = deps.editor ?? new StreamingEditor(plugin.app);
+		this.editor =
+			deps.editor ??
+			new StreamingEditor(plugin.app, () => ({
+				enabled: plugin.settings.liveInterimHighlight,
+				color: plugin.settings.liveInterimHighlightColor,
+			}));
 		this.createSocket =
 			deps.createSocket ?? ((url) => new WebSocket(url) as LiveSocket);
 		this.flushDelayMs = deps.flushDelayMs ?? 1000;
@@ -161,10 +170,18 @@ export class GeminiLiveTranscriber {
 			this.socket.onopen = () => {
 				this.socket?.send(
 					JSON.stringify(
-						setupMessage(
-							this.plugin.settings.geminiLiveModel,
-							this.plugin.settings.language || undefined
-						)
+						setupMessage(this.plugin.settings.geminiLiveModel, {
+							languageCodes: parseLanguageCodes(
+								this.plugin.settings.geminiLiveLanguageCodes
+							),
+							transcriptionMode:
+								this.plugin.settings.geminiLiveTranscriptionMode,
+							customVocabulary: parseCommaOrLineList(
+								this.plugin.settings.geminiLiveCustomVocabulary
+							),
+							systemPrompt:
+								this.plugin.settings.geminiLiveSystemPrompt,
+						})
 					)
 				);
 			};

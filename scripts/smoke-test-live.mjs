@@ -108,17 +108,23 @@ async function main() {
 
   ws.addEventListener("open", () => {
     console.log("WebSocket connected. Sending setup...");
+    const setup = {
+      model: MODEL,
+      generationConfig: {
+        responseModalities: ["TEXT"],
+      },
+      inputAudioTranscription: {
+        mode: "smart",
+      },
+    };
+    if (process.env.GEMINI_LIVE_SYSTEM_PROMPT) {
+      setup.systemInstruction = {
+        parts: [{ text: process.env.GEMINI_LIVE_SYSTEM_PROMPT }],
+      };
+    }
     ws.send(
       JSON.stringify({
-        setup: {
-          model: MODEL,
-          generationConfig: {
-            responseModalities: ["TEXT"],
-          },
-          inputAudioTranscription: {
-            mode: "smart",
-          },
-        },
+        setup,
       })
     );
   });

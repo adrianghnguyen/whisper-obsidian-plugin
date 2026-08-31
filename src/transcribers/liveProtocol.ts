@@ -11,6 +11,8 @@ export const LIVE_WS_URL =
 export const PCM_MIME = "audio/pcm;rate=16000";
 export const TARGET_SAMPLE_RATE = 16000;
 
+export type GeminiTranscriptionMode = "smart" | "verbatim";
+
 export interface LiveTranscript {
 	setupComplete?: boolean;
 	interimText?: string;
@@ -18,26 +20,44 @@ export interface LiveTranscript {
 	errorMessage?: string;
 }
 
+export interface LiveSetupOptions {
+	languageCodes?: string[];
+	transcriptionMode?: GeminiTranscriptionMode;
+	customVocabulary?: string[];
+	systemPrompt?: string;
+}
+
 export function setupMessage(
 	model: string,
-	language?: string
+	options: LiveSetupOptions = {}
 ): Record<string, unknown> {
 	const modelId = model.startsWith("models/") ? model : `models/${model}`;
 	const inputAudioTranscription: Record<string, unknown> = {
-		mode: "smart",
+		mode: options.transcriptionMode ?? "smart",
 	};
-	if (language) {
-		inputAudioTranscription.languageCodes = [language];
+	if (options.languageCodes?.length) {
+		inputAudioTranscription.languageCodes = options.languageCodes;
 	}
-	return {
-		setup: {
-			model: modelId,
-			generationConfig: {
-				responseModalities: ["TEXT"],
-			},
-			inputAudioTranscription,
+	if (options.customVocabulary?.length) {
+		inputAudioTranscription.customVocabulary = options.customVocabulary;
+	}
+
+	const setup: Record<string, unknown> = {
+		model: modelId,
+		generationConfig: {
+			responseModalities: ["TEXT"],
 		},
+		inputAudioTranscription,
 	};
+
+	const prompt = options.systemPrompt?.trim();
+	if (prompt) {
+		setup.systemInstruction = {
+			parts: [{ text: prompt }],
+		};
+	}
+
+	return { setup };
 }
 
 export function realtimeAudioMessage(

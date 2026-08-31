@@ -34,6 +34,8 @@ export const PROVIDER_DEFAULT_MODELS: Record<PostProcessingProvider, string> = {
 	custom: "",
 };
 
+export type GeminiTranscriptionMode = "smart" | "verbatim";
+
 export interface ApiKeysSettings {
 	apiKey: string;
 	openAiApiKey: string;
@@ -51,6 +53,15 @@ export interface WhisperSettings {
 	model: string;
 	geminiModel: string;
 	geminiLiveModel: string;
+	geminiTranscriptionMode: GeminiTranscriptionMode;
+	geminiLanguageCodes: string;
+	geminiCustomVocabulary: string;
+	geminiDiarization: boolean;
+	geminiWordTimestamps: boolean;
+	geminiLiveTranscriptionMode: GeminiTranscriptionMode;
+	geminiLiveLanguageCodes: string;
+	geminiLiveCustomVocabulary: string;
+	geminiLiveSystemPrompt: string;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -66,6 +77,9 @@ export interface WhisperSettings {
 	noteSavePath: string;
 	noteFilenameTemplate: string;
 	noteTemplate: string;
+	// Gemini Live
+	liveInterimHighlight: boolean;
+	liveInterimHighlightColor: string;
 	// Advanced
 	debugMode: boolean;
 }
@@ -100,6 +114,15 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	model: "whisper-1",
 	geminiModel: "gemini-3.5-transcribe-preview",
 	geminiLiveModel: "gemini-3.5-transcribe-live",
+	geminiTranscriptionMode: "smart",
+	geminiLanguageCodes: "",
+	geminiCustomVocabulary: "",
+	geminiDiarization: false,
+	geminiWordTimestamps: false,
+	geminiLiveTranscriptionMode: "smart",
+	geminiLiveLanguageCodes: "",
+	geminiLiveCustomVocabulary: "",
+	geminiLiveSystemPrompt: "",
 	language: "",
 	prompt: "",
 	temperature: 0,
@@ -113,6 +136,8 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	noteSavePath: "",
 	noteFilenameTemplate: "{{datetime}}",
 	noteTemplate: "![[{{audioFile}}]]\n{{transcription}}",
+	liveInterimHighlight: true,
+	liveInterimHighlightColor: "#CCCCCC66",
 	debugMode: false,
 };
 
@@ -290,6 +315,36 @@ export class SettingsManager {
 		}
 	}
 
+	private migrateGeminiSettings(settings: PluginSettings): boolean {
+		let migrated = false;
+		const legacy = settings as PluginSettings & {
+			geminiSystemPrompt?: string;
+		};
+
+		if (settings.language) {
+			if (!settings.geminiLanguageCodes) {
+				settings.geminiLanguageCodes = settings.language;
+				migrated = true;
+			}
+			if (!settings.geminiLiveLanguageCodes) {
+				settings.geminiLiveLanguageCodes = settings.language;
+				migrated = true;
+			}
+		}
+
+		if (legacy.geminiSystemPrompt && !settings.geminiCustomVocabulary) {
+			settings.geminiCustomVocabulary = legacy.geminiSystemPrompt;
+			migrated = true;
+		}
+
+		if (legacy.geminiSystemPrompt !== undefined) {
+			delete legacy.geminiSystemPrompt;
+			migrated = true;
+		}
+
+		return migrated;
+	}
+
 	private migratePostProcessingProvider(settings: PluginSettings): boolean {
 		// Existing users without postProcessingProvider: infer from URL
 		if (settings.postProcessingProvider) return false;
@@ -353,6 +408,10 @@ export class SettingsManager {
 
 		// Migrate provider setting for existing users
 		if (this.migratePostProcessingProvider(settings)) {
+			persist = true;
+		}
+
+		if (this.migrateGeminiSettings(settings)) {
 			persist = true;
 		}
 
