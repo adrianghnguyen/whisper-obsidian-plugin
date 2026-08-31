@@ -1,5 +1,5 @@
 import Whisper from "main";
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import {
 	SettingsManager,
 	TranscriptionProvider,
@@ -145,7 +145,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		desc: string,
 		placeholder: string,
 		value: string,
-		field: keyof ApiKeysSettings,
+		field: Exclude<keyof ApiKeysSettings, "apiKey">,
 		onChange: (value: string) => Promise<void>
 	): void {
 		new Setting(this.containerEl)
@@ -175,17 +175,23 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createWhisperApiKeySetting(): void {
-		this.createApiKeySetting(
-			"Whisper API Key",
-			"API key for Whisper transcription (OpenAI, Groq, or Azure)",
-			"sk-...xxxx",
-			this.plugin.settings.apiKey,
-			"apiKey",
-			async (value) => {
-				this.plugin.settings.apiKey = value;
-				await this.settingsManager.saveSettings(this.plugin.settings);
-			}
-		);
+		new Setting(this.containerEl)
+			.setName("Whisper API Key")
+			.setDesc(
+				"Select an Obsidian keychain secret for Whisper transcription (OpenAI, Groq, or Azure). Create or manage secrets in Settings → General → Keychain."
+			)
+			.addComponent((el) => {
+				el.setAttribute("data-whisper-secret-component", "true");
+				return new SecretComponent(this.app, el)
+					.setValue(this.plugin.settings.whisperApiKeySecretId)
+					.onChange(async (value) => {
+						if (this.rebuilding) return;
+						this.plugin.settings.whisperApiKeySecretId = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					});
+			});
 	}
 
 	private createGeminiApiKeySetting(): void {

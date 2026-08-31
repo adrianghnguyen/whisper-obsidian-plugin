@@ -6,12 +6,16 @@ import {
 } from "../src/SettingsManager";
 
 describe("DEFAULT_SETTINGS", () => {
+	it("defaults whisper secret id to empty", () => {
+		expect(DEFAULT_SETTINGS.whisperApiKeySecretId).toBe("");
+		expect(DEFAULT_SETTINGS.apiKey).toBe("");
+	});
+
 	it("has correct API defaults", () => {
 		expect(DEFAULT_SETTINGS.apiUrl).toBe(
 			"https://api.openai.com/v1/audio/transcriptions"
 		);
 		expect(DEFAULT_SETTINGS.model).toBe("whisper-1");
-		expect(DEFAULT_SETTINGS.apiKey).toBe("");
 	});
 
 	it("defaults language to empty (auto-detect)", () => {
