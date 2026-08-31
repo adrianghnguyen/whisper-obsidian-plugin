@@ -82,7 +82,10 @@ export class GeminiLiveTranscriber {
 		);
 
 		// Give the server a moment to flush final transcriptions
-		await new Promise((resolve) => setTimeout(resolve, 500));
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Lock the last interim text as final (it's already in the editor)
+		this.editor.lockInterim();
 
 		this.editor.reset();
 		this.cleanup();
@@ -160,8 +163,8 @@ export class GeminiLiveTranscriber {
 		if (!serverContent) return;
 
 		// Interim transcriptions (partial hypotheses)
-		if (serverContent.interimTranscription?.text) {
-			const text = serverContent.interimTranscription.text;
+		if (serverContent.interimInputTranscription?.text) {
+			const text = serverContent.interimInputTranscription.text;
 			if (this.plugin.settings.debugMode) {
 				console.log("[interim]", text);
 			}

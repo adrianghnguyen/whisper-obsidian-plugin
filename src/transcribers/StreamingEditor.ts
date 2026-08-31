@@ -76,6 +76,15 @@ export class StreamingEditor {
 	}
 
 	/**
+	 * Lock the current interim text as final without modifying it.
+	 * The text is already in the editor from the last updateInterim call.
+	 * This just clears the anchor so the next streaming session starts fresh.
+	 */
+	lockInterim(): void {
+		this.interimAnchor = null;
+	}
+
+	/**
 	 * Clean up any pending interim state.
 	 */
 	reset(): void {
