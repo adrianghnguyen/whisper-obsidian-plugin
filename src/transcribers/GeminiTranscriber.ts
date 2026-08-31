@@ -22,20 +22,20 @@ export class GeminiTranscriber implements Transcriber {
 		const base64Audio = await blobToBase64(blob);
 		const mimeType = blob.type || "audio/webm";
 
+		if (plugin.settings.debugMode) {
+			new Notice("Sending to Gemini Interactions API...");
+		}
+
 		const response = await axios.post(
-			`https://generativelanguage.googleapis.com/v1beta/models/${plugin.settings.geminiModel}:generateContent`,
+			"https://generativelanguage.googleapis.com/v1beta/interactions",
 			{
-				contents: [
+				model: plugin.settings.geminiModel,
+				input: [
+					{ type: "text", text: "Transcribe this audio." },
 					{
-						parts: [
-							{ text: "Transcribe this audio." },
-							{
-								inline_data: {
-									mime_type: mimeType,
-									data: base64Audio,
-								},
-							},
-						],
+						type: "audio",
+						data: base64Audio,
+						mime_type: mimeType,
 					},
 				],
 			},
@@ -47,10 +47,18 @@ export class GeminiTranscriber implements Transcriber {
 			}
 		);
 
+		if (plugin.settings.debugMode) {
+			new Notice(
+				"Gemini responded: " +
+					JSON.stringify(response.data).substring(0, 300)
+			);
+		}
+
+		// Interactions API returns output_text, not candidates[].content.parts[].text
 		const text: string =
-			response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-			"";
+			response.data?.output_text?.trim() || "";
 		if (!text) {
+			console.error("Gemini response:", JSON.stringify(response.data));
 			new Notice("✘ Gemini returned empty transcription");
 			throw new Error("Empty transcription from Gemini");
 		}
