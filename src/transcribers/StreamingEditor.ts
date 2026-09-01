@@ -34,6 +34,32 @@ export class StreamingEditor {
 	}
 
 	/**
+	 * Separator to insert before a new segment when the previous content
+	 * does not already end with whitespace. Gemini Live transcription
+	 * segments are committed independently and often lack leading spaces.
+	 */
+	private static joinSeparator(existing: string, incoming: string): string {
+		if (!incoming || !existing) return "";
+		if (/\s$/.test(existing)) return "";
+		if (/^[,.!?;:)\]]/.test(incoming)) return "";
+		if (/^[\s]/.test(incoming)) return "";
+		return " ";
+	}
+
+	private separatorBeforeInsert(
+		editor: Editor,
+		pos: { line: number; ch: number },
+		text: string
+	): string {
+		if (!text || !pos) return "";
+		const lineText = editor.getLine(pos.line) ?? "";
+		return StreamingEditor.joinSeparator(
+			lineText.slice(0, pos.ch),
+			text
+		);
+	}
+
+	/**
 	 * Insert or replace interim (partial) text at the cursor.
 	 * On first call, records the anchor position. On subsequent calls,
 	 * replaces from the anchor to the current end of interim text.
@@ -43,7 +69,15 @@ export class StreamingEditor {
 		if (!editor) return;
 
 		if (!this.interimAnchor) {
-			this.interimAnchor = editor.getCursor();
+			const cursor = editor.getCursor();
+			const separator = this.separatorBeforeInsert(editor, cursor, text);
+			this.interimAnchor = {
+				line: cursor.line,
+				ch: cursor.ch + separator.length,
+			};
+			if (separator) {
+				editor.replaceRange(separator, cursor);
+			}
 		}
 
 		// Replace from anchor to current cursor position
@@ -82,12 +116,18 @@ export class StreamingEditor {
 			};
 			editor.setCursor(newPos);
 		} else {
-			// No interim anchor — just append at cursor
+			// No interim anchor — just append at cursor with a separator
+			// so consecutive final segments do not concatenate.
 			const cursor = editor.getCursor();
-			editor.replaceRange(text, cursor);
+			const separator = this.separatorBeforeInsert(
+				editor,
+				cursor,
+				text
+			);
+			editor.replaceRange(separator + text, cursor);
 			const newPos = {
 				line: cursor.line,
-				ch: cursor.ch + text.length,
+				ch: cursor.ch + separator.length + text.length,
 			};
 			editor.setCursor(newPos);
 		}
