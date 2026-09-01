@@ -244,6 +244,7 @@ export class SettingsManager {
 	private migrateKeysFromDataJson(settings: PluginSettings): boolean {
 		// One-time migration: move plain-text keys out of data.json into SecretStorage.
 		// Only runs for legacy installs that still have keys in data.json.
+		if (!this.secrets) return false;
 		let migrated = false;
 		if (settings.apiKey) {
 			this.secrets.setSecret(LEGACY_WHISPER_SECRET_ID, settings.apiKey);
@@ -267,6 +268,7 @@ export class SettingsManager {
 		// not overwrite an existing secret (settings rebuilds used to wipe keys).
 		// Strip keys from the settings object so they never land in data.json.
 		// Whisper transcription keys are managed via SecretComponent instead.
+		if (!this.secrets) return;
 		settings.apiKey = "";
 		for (const [field, secretId] of Object.entries(SECRET_IDS)) {
 			const key = field as Exclude<keyof ApiKeysSettings, "apiKey">;
@@ -292,6 +294,10 @@ export class SettingsManager {
 		settings: PluginSettings,
 		field: Exclude<keyof ApiKeysSettings, "apiKey">
 	): void {
+		if (!this.secrets) {
+			settings[field] = "";
+			return;
+		}
 		const secretId = SECRET_IDS[field];
 		settings[field] = "";
 		const secrets = this.secrets as {
@@ -307,6 +313,7 @@ export class SettingsManager {
 	}
 
 	private loadKeysFromSecretStorage(settings: PluginSettings): void {
+		if (!this.secrets) return;
 		settings.apiKey = resolveWhisperApiKey(
 			this.secrets,
 			settings.whisperApiKeySecretId
@@ -433,17 +440,24 @@ export class SettingsManager {
 		}
 
 		// One-time migration of any plain-text keys left in data.json
-		if (this.migrateKeysFromDataJson(settings)) {
+		if (this.secrets && this.migrateKeysFromDataJson(settings)) {
 			persist = true;
 		}
 
-		if (migrateLegacyWhisperSecretId(settings, this.secrets)) {
+		if (this.secrets && migrateLegacyWhisperSecretId(settings, this.secrets)) {
 			persist = true;
 		}
 
 		if (persist) {
-			// Defer disk writes — saveData during onload can deadlock vault startup.
-			void this.persistDiskSettings(settings);
+			// Defer disk writes until after workspace layout is ready to avoid startup deadlock
+			const workspace = this.plugin.app.workspace;
+			if (workspace && typeof workspace.onLayoutReady === "function") {
+				workspace.onLayoutReady(() => {
+					void this.persistDiskSettings(settings);
+				});
+			} else {
+				void this.persistDiskSettings(settings);
+			}
 		}
 
 		// Populate in-memory settings from SecretStorage
