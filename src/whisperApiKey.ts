@@ -5,10 +5,10 @@ export interface SecretStorageReader {
 }
 
 export function resolveWhisperApiKey(
-	secrets: SecretStorageReader,
+	secrets: SecretStorageReader | undefined | null,
 	secretId: string
 ): string {
-	if (!secretId) {
+	if (!secretId || !secrets || typeof secrets.getSecret !== "function") {
 		return "";
 	}
 	return secrets.getSecret(secretId) ?? "";
@@ -20,9 +20,13 @@ export interface WhisperSecretSettings {
 
 export function migrateLegacyWhisperSecretId(
 	settings: WhisperSecretSettings,
-	secrets: SecretStorageReader
+	secrets: SecretStorageReader | undefined | null
 ): boolean {
-	if (settings.whisperApiKeySecretId) {
+	if (
+		settings.whisperApiKeySecretId ||
+		!secrets ||
+		typeof secrets.getSecret !== "function"
+	) {
 		return false;
 	}
 	const legacyKey = secrets.getSecret(LEGACY_WHISPER_SECRET_ID);
