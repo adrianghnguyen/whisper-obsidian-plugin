@@ -62,7 +62,7 @@ export interface WhisperSettings {
 	geminiLiveLanguageCodes: string;
 	geminiLiveCustomVocabulary: string;
 	geminiLiveSystemPrompt: string;
-	geminiLiveVadTolerance: string;
+	geminiLivePauseDelay: number;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -124,7 +124,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	geminiLiveLanguageCodes: "",
 	geminiLiveCustomVocabulary: "",
 	geminiLiveSystemPrompt: "",
-	geminiLiveVadTolerance: "medium",
+	geminiLivePauseDelay: 750,
 	language: "",
 	prompt: "",
 	temperature: 0,
@@ -341,6 +341,21 @@ export class SettingsManager {
 
 		if (legacy.geminiSystemPrompt !== undefined) {
 			delete legacy.geminiSystemPrompt;
+			migrated = true;
+		}
+
+		if ((legacy as any).geminiLiveVadTolerance !== undefined) {
+			const vad = (legacy as any).geminiLiveVadTolerance;
+			if (settings.geminiLivePauseDelay === undefined) {
+				if (vad === "high") {
+					settings.geminiLivePauseDelay = 1200;
+				} else if (vad === "default") {
+					settings.geminiLivePauseDelay = 500;
+				} else {
+					settings.geminiLivePauseDelay = 750;
+				}
+			}
+			delete (legacy as any).geminiLiveVadTolerance;
 			migrated = true;
 		}
 

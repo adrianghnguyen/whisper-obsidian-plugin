@@ -131,9 +131,8 @@ describe("GeminiLiveTranscriber session", () => {
 		expect(recorder.deviceId).toBe("mic-abc");
 	});
 
-	it("sends VAD config from the pause tolerance setting", async () => {
+	it("sends standard setup configuration on start", async () => {
 		const plugin = makePlugin();
-		plugin.settings.geminiLiveVadTolerance = "high";
 		const live = new GeminiLiveTranscriber(plugin, {
 			createSocket: () => socket,
 			recorder,
@@ -147,16 +146,13 @@ describe("GeminiLiveTranscriber session", () => {
 		socket.receive(JSON.stringify({ setupComplete: {} }));
 		await start;
 
+		expect(socket.parsed()[0].setup.model).toBe(
+			"models/gemini-3.5-transcribe-live"
+		);
 		expect(
-			socket.parsed()[0].setup.realtimeInputConfig
+			socket.parsed()[0].setup.inputAudioTranscription
 		).toEqual({
-			automaticActivityDetection: {
-				disabled: false,
-				endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-				startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-				silenceDurationMs: 2500,
-				prefixPaddingMs: 500,
-			},
+			mode: "smart",
 		});
 	});
 

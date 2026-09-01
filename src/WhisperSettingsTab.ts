@@ -126,13 +126,13 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				.setHeading();
 			this.createGeminiLiveModelSetting();
 			this.createGeminiLiveTranscriptionModeSetting();
-			this.createGeminiLiveVadToleranceSetting();
 			this.createGeminiLiveLanguageCodesSetting();
 			this.createGeminiLiveCustomVocabularySetting();
 			this.createGeminiLiveSystemInstructionSetting();
 			new Setting(containerEl)
 				.setName("Gemini Live — editor")
 				.setHeading();
+			this.createGeminiLivePauseDelaySetting();
 			this.createLiveInterimHighlightSettings();
 		} else if (isGemini) {
 			new Setting(containerEl)
@@ -312,22 +312,26 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		);
 	}
 
-	private createGeminiLiveVadToleranceSetting(): void {
+	private createGeminiLivePauseDelaySetting(): void {
 		new Setting(this.containerEl)
-			.setName("Pause tolerance")
+			.setName("Pause delay")
 			.setDesc(
-				"How long Gemini Live waits through silence before committing your words to the note. Higher settings keep stuttering or thinking pauses from splitting sentences, at the cost of a short delay after you stop talking. Takes effect on the next recording."
+				"How long to pause before in-progress speech is locked into the note. Lower values commit faster; higher values give you more time between words without locking. Subsequent speech always appends smoothly at the cursor."
 			)
 			.addDropdown((dropdown) => {
-				dropdown.addOption("default", "Default (short pauses)");
-				dropdown.addOption("medium", "Medium (1.5 s)");
-				dropdown.addOption("high", "High (2.5 s)");
+				dropdown.addOption("500", "Fast (500 ms)");
+				dropdown.addOption("750", "Standard (750 ms)");
+				dropdown.addOption("1200", "Relaxed (1.2 s)");
+				dropdown.addOption("2000", "Long (2.0 s)");
 				dropdown
 					.setValue(
-						this.plugin.settings.geminiLiveVadTolerance || "medium"
+						String(
+							this.plugin.settings.geminiLivePauseDelay || 750
+						)
 					)
 					.onChange(async (value) => {
-						this.plugin.settings.geminiLiveVadTolerance = value;
+						this.plugin.settings.geminiLivePauseDelay =
+							Number(value) || 750;
 						await this.save();
 						this.display();
 					});

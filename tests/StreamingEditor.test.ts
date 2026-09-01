@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { StreamingEditor } from "../src/transcribers/StreamingEditor";
 import type { LiveHighlightConfig } from "../src/transcribers/StreamingEditor";
 
@@ -50,7 +50,10 @@ const HIGHLIGHT_OFF: () => LiveHighlightConfig = () => ({
 	color: "",
 });
 
-function makeEditor(highlight: () => LiveHighlightConfig = HIGHLIGHT_OFF) {
+function makeEditor(
+	highlight: () => LiveHighlightConfig = HIGHLIGHT_OFF,
+	pauseDelay: () => number = () => 750
+) {
 	const fake = new FakeEditor();
 	const streaming = new StreamingEditor(
 		{
@@ -58,7 +61,8 @@ function makeEditor(highlight: () => LiveHighlightConfig = HIGHLIGHT_OFF) {
 				getActiveViewOfType: () => ({ editor: fake }),
 			},
 		} as any,
-		highlight
+		highlight,
+		pauseDelay
 	);
 	return { fake, streaming };
 }
@@ -108,5 +112,78 @@ describe("StreamingEditor segment spacing", () => {
 	it("does not insert a separator for the very first segment", () => {
 		streaming.commitFinal("First");
 		expect(fake.content()).toBe("First");
+	});
+});
+
+describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("auto-commits interim text after pause delay and clears anchor", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("First thought");
+		expect(fake.content()).toBe("First thought");
+
+		// Advance timer past pause delay
+		vi.advanceTimersByTime(500);
+
+		// Subsequent interim update should be treated as a fresh voice pass at the new anchor
+		streaming.updateInterim("second thought");
+		expect(fake.content()).toBe("First thought second thought");
+	});
+
+	it("resets auto-commit timer on continuous interim updates", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("Hello");
+		vi.advanceTimersByTime(300);
+
+		// User still talking before pause delay expires
+		streaming.updateInterim("Hello world");
+		vi.advanceTimersByTime(300);
+
+		expect(fake.content()).toBe("Hello world");
+
+		// Wait remaining time for timer to fire
+		vi.advanceTimersByTime(200);
+
+		// Now it should be locked; next pass should append
+		streaming.updateInterim("next part");
+		expect(fake.content()).toBe("Hello world next part");
+	});
+
+	it("reconciles matching server commitFinal after auto-commit without duplicating", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("Testing this");
+		vi.advanceTimersByTime(500); // auto-committed
+
+		// Server belatedly sends final transcription with exact text
+		streaming.commitFinal("Testing this");
+		expect(fake.content()).toBe("Testing this");
+	});
+
+	it("refines locked text if server commitFinal provides punctuation/casing update", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("testing this");
+		vi.advanceTimersByTime(500); // auto-committed
+
+		// Server sends capitalized and punctuated final
+		streaming.commitFinal("Testing this.");
+		expect(fake.content()).toBe("Testing this.");
+	});
+
+	it("handles standard commitFinal before auto-commit timer expires", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("Quick word");
+		streaming.commitFinal("Quick word.");
+		expect(fake.content()).toBe("Quick word.");
+
+		// Timer should be cancelled so nothing breaks after 500ms
+		vi.advanceTimersByTime(500);
+		expect(fake.content()).toBe("Quick word.");
 	});
 });

@@ -10,7 +10,6 @@ import {
 	realtimeAudioMessage,
 	setupMessage,
 } from "./liveProtocol";
-import type { LiveVadTolerance } from "./liveProtocol";
 import {
 	parseCommaOrLineList,
 	parseLanguageCodes,
@@ -75,10 +74,14 @@ export class GeminiLiveTranscriber {
 		this.recorder = deps.recorder ?? new StreamingRecorder();
 		this.editor =
 			deps.editor ??
-			new StreamingEditor(plugin.app, () => ({
-				enabled: plugin.settings.liveInterimHighlight,
-				color: plugin.settings.liveInterimHighlightColor,
-			}));
+			new StreamingEditor(
+				plugin.app,
+				() => ({
+					enabled: plugin.settings.liveInterimHighlight,
+					color: plugin.settings.liveInterimHighlightColor,
+				}),
+				() => plugin.settings.geminiLivePauseDelay
+			);
 		this.createSocket =
 			deps.createSocket ?? ((url) => new WebSocket(url) as LiveSocket);
 		this.flushDelayMs = deps.flushDelayMs ?? 1000;
@@ -180,11 +183,9 @@ export class GeminiLiveTranscriber {
 							customVocabulary: parseCommaOrLineList(
 								this.plugin.settings.geminiLiveCustomVocabulary
 							),
-						systemPrompt:
+							systemPrompt:
 								this.plugin.settings.geminiLiveSystemPrompt,
-						vadTolerance: this.plugin.settings
-							.geminiLiveVadTolerance as LiveVadTolerance,
-					})
+						})
 					)
 				);
 			};

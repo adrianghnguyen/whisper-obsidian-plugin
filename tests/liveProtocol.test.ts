@@ -20,48 +20,11 @@ describe("setupMessage", () => {
 		});
 	});
 
-	it("omits realtimeInputConfig when vadTolerance is unset or default", () => {
+	it("omits realtimeInputConfig by default so server uses native low-latency VAD", () => {
 		expect(
 			(setupMessage("gemini-3.5-transcribe-live") as any).setup
 				.realtimeInputConfig
 		).toBeUndefined();
-		expect(
-			(
-				setupMessage("gemini-3.5-transcribe-live", {
-					vadTolerance: "default",
-				}) as any
-			).setup.realtimeInputConfig
-		).toBeUndefined();
-	});
-
-	it("maps medium tolerance to conservative end-of-speech VAD", () => {
-		const msg = setupMessage("gemini-3.5-transcribe-live", {
-			vadTolerance: "medium",
-		});
-		expect((msg.setup as any).realtimeInputConfig).toEqual({
-			automaticActivityDetection: {
-				disabled: false,
-				endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-				startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-				silenceDurationMs: 1500,
-				prefixPaddingMs: 300,
-			},
-		});
-	});
-
-	it("maps high tolerance to a longer silence window", () => {
-		const msg = setupMessage("gemini-3.5-transcribe-live", {
-			vadTolerance: "high",
-		});
-		expect((msg.setup as any).realtimeInputConfig).toEqual({
-			automaticActivityDetection: {
-				disabled: false,
-				endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-				startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-				silenceDurationMs: 2500,
-				prefixPaddingMs: 500,
-			},
-		});
 	});
 
 	it("adds language codes when provided", () => {

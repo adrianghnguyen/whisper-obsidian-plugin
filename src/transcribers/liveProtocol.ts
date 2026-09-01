@@ -13,48 +13,6 @@ export const TARGET_SAMPLE_RATE = 16000;
 
 export type GeminiTranscriptionMode = "smart" | "verbatim";
 
-/**
- * How long the server tolerates silence before committing end-of-speech.
- * "default" sends no VAD config (server defaults: END_SENSITIVITY_HIGH,
- * ~immediate turn ends). Higher tolerance maps to END_SENSITIVITY_LOW plus
- * a longer silence window so stutters and thinking pauses do not split turns.
- */
-export type LiveVadTolerance = "default" | "medium" | "high";
-
-export interface LiveVadConfig {
-	endOfSpeechSensitivity?: string;
-	startOfSpeechSensitivity?: string;
-	silenceDurationMs?: number;
-	prefixPaddingMs?: number;
-}
-
-const VAD_PRESETS: Record<
-	Exclude<LiveVadTolerance, "default">,
-	LiveVadConfig
-> = {
-	medium: {
-		endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-		startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-		silenceDurationMs: 1500,
-		prefixPaddingMs: 300,
-	},
-	high: {
-		endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-		startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-		silenceDurationMs: 2500,
-		prefixPaddingMs: 500,
-	},
-};
-
-export function vadConfigFor(
-	tolerance: LiveVadTolerance | undefined
-): LiveVadConfig | null {
-	if (!tolerance || tolerance === "default") {
-		return null;
-	}
-	return VAD_PRESETS[tolerance] ?? null;
-}
-
 export interface LiveTranscript {
 	setupComplete?: boolean;
 	interimText?: string;
@@ -67,7 +25,6 @@ export interface LiveSetupOptions {
 	transcriptionMode?: GeminiTranscriptionMode;
 	customVocabulary?: string[];
 	systemPrompt?: string;
-	vadTolerance?: LiveVadTolerance;
 }
 
 export function setupMessage(
@@ -97,16 +54,6 @@ export function setupMessage(
 	if (prompt) {
 		setup.systemInstruction = {
 			parts: [{ text: prompt }],
-		};
-	}
-
-	const vad = vadConfigFor(options.vadTolerance);
-	if (vad) {
-		setup.realtimeInputConfig = {
-			automaticActivityDetection: {
-				disabled: false,
-				...vad,
-			},
 		};
 	}
 
