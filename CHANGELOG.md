@@ -1,5 +1,16 @@
 
 
+## [1.10.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.4...1.10.0) (2026-08-31)
+
+### Features
+
+* **Highlight interim Gemini Live text in the note.** As you speak, the streamed (not-yet-final) text is shown in a distinct style and settles into normal text once finalized, so you can see the stream in real time.
+* **Configurable Gemini transcription model and prompt.** Advanced settings now expose the Gemini Live transcription API model and prompt overrides, so you can steer transcription behavior without code changes.
+
+### Bug Fixes
+
+* **Remove the unused live character count from the status bar.** The recording label no longer shows a character total that stayed at 0; it now shows just the state and microphone name.
+
 ## [1.9.4](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.3...1.9.4) (2026-08-30)
 
 ### Bug Fixes
