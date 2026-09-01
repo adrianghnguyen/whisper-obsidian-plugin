@@ -26,4 +26,6 @@ Expect `Setup complete.` then `[INTERIM]` / `[FINAL]` lines. If setup succeeds a
 
 Optional: `$env:DEBUG_WS = "1"` logs truncated raw server messages.
 
+The smoke test also accepts optional VAD overrides so pause-tolerance behavior can be verified against the real network: `$env:GEMINI_LIVE_SILENCE_MS = "2500"` enables `realtimeInputConfig.automaticActivityDetection` (with `GEMINI_LIVE_END_SENSITIVITY`, `GEMINI_LIVE_START_SENSITIVITY`, `GEMINI_LIVE_PREFIX_PADDING_MS` as further overrides). Omit `GEMINI_LIVE_SILENCE_MS` for plain server defaults. Note: on `gemini-3.1-flash-live-preview` `silenceDurationMs` has been reported as ignored (js-genai#1467); `gemini-3.5-transcribe-live` honors it per the capabilities guide.
+
 Vault catalog: `Notes/obsidian plugin tweaks.md`.

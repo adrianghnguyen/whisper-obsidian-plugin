@@ -126,6 +126,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				.setHeading();
 			this.createGeminiLiveModelSetting();
 			this.createGeminiLiveTranscriptionModeSetting();
+			this.createGeminiLiveVadToleranceSetting();
 			this.createGeminiLiveLanguageCodesSetting();
 			this.createGeminiLiveCustomVocabularySetting();
 			this.createGeminiLiveSystemInstructionSetting();
@@ -309,6 +310,28 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				await this.settingsManager.saveSettings(this.plugin.settings);
 			}
 		);
+	}
+
+	private createGeminiLiveVadToleranceSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Pause tolerance")
+			.setDesc(
+				"How long Gemini Live waits through silence before committing your words to the note. Higher settings keep stuttering or thinking pauses from splitting sentences, at the cost of a short delay after you stop talking. Takes effect on the next recording."
+			)
+			.addDropdown((dropdown) => {
+				dropdown.addOption("default", "Default (short pauses)");
+				dropdown.addOption("medium", "Medium (1.5 s)");
+				dropdown.addOption("high", "High (2.5 s)");
+				dropdown
+					.setValue(
+						this.plugin.settings.geminiLiveVadTolerance || "medium"
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.geminiLiveVadTolerance = value;
+						await this.save();
+						this.display();
+					});
+			});
 	}
 
 	private createGeminiLiveSystemInstructionSetting(): void {

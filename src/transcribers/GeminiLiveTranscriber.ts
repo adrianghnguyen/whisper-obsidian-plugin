@@ -10,6 +10,7 @@ import {
 	realtimeAudioMessage,
 	setupMessage,
 } from "./liveProtocol";
+import type { LiveVadTolerance } from "./liveProtocol";
 import {
 	parseCommaOrLineList,
 	parseLanguageCodes,
@@ -179,9 +180,11 @@ export class GeminiLiveTranscriber {
 							customVocabulary: parseCommaOrLineList(
 								this.plugin.settings.geminiLiveCustomVocabulary
 							),
-							systemPrompt:
+						systemPrompt:
 								this.plugin.settings.geminiLiveSystemPrompt,
-						})
+						vadTolerance: this.plugin.settings
+							.geminiLiveVadTolerance as LiveVadTolerance,
+					})
 					)
 				);
 			};

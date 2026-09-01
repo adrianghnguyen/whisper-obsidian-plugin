@@ -62,6 +62,7 @@ export interface WhisperSettings {
 	geminiLiveLanguageCodes: string;
 	geminiLiveCustomVocabulary: string;
 	geminiLiveSystemPrompt: string;
+	geminiLiveVadTolerance: string;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -123,6 +124,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	geminiLiveLanguageCodes: "",
 	geminiLiveCustomVocabulary: "",
 	geminiLiveSystemPrompt: "",
+	geminiLiveVadTolerance: "medium",
 	language: "",
 	prompt: "",
 	temperature: 0,

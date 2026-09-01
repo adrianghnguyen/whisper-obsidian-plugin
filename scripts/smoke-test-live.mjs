@@ -117,6 +117,21 @@ async function main() {
         mode: "smart",
       },
     };
+    const silenceMs = Number(process.env.GEMINI_LIVE_SILENCE_MS);
+    if (Number.isFinite(silenceMs) && silenceMs > 0) {
+      setup.realtimeInputConfig = {
+        automaticActivityDetection: {
+          disabled: false,
+          endOfSpeechSensitivity:
+            process.env.GEMINI_LIVE_END_SENSITIVITY || "END_SENSITIVITY_LOW",
+          startOfSpeechSensitivity:
+            process.env.GEMINI_LIVE_START_SENSITIVITY ||
+            "START_SENSITIVITY_HIGH",
+          silenceDurationMs: silenceMs,
+          prefixPaddingMs: Number(process.env.GEMINI_LIVE_PREFIX_PADDING_MS) || 300,
+        },
+      };
+    }
     if (process.env.GEMINI_LIVE_SYSTEM_PROMPT) {
       setup.systemInstruction = {
         parts: [{ text: process.env.GEMINI_LIVE_SYSTEM_PROMPT }],

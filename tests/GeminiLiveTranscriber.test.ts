@@ -131,6 +131,35 @@ describe("GeminiLiveTranscriber session", () => {
 		expect(recorder.deviceId).toBe("mic-abc");
 	});
 
+	it("sends VAD config from the pause tolerance setting", async () => {
+		const plugin = makePlugin();
+		plugin.settings.geminiLiveVadTolerance = "high";
+		const live = new GeminiLiveTranscriber(plugin, {
+			createSocket: () => socket,
+			recorder,
+			editor,
+			flushDelayMs: 0,
+		});
+		const start = live.startStream();
+		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());
+		socket.open();
+
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		expect(
+			socket.parsed()[0].setup.realtimeInputConfig
+		).toEqual({
+			automaticActivityDetection: {
+				disabled: false,
+				endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+				startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+				silenceDurationMs: 2500,
+				prefixPaddingMs: 500,
+			},
+		});
+	});
+
 	it("drops PCM until setupComplete, then sends audio not mediaChunks", async () => {
 		const start = transcriber.startStream();
 		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());
