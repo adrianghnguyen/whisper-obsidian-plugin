@@ -13,7 +13,7 @@ export async function applyAudioDeviceSelection(
 	await plugin.settingsManager.saveSettings(plugin.settings);
 	const resolved = deviceId === "default" ? null : deviceId;
 	plugin.recorder.setDeviceId(resolved);
-	if (plugin.audioHandler.liveStream.isActive()) {
+	if (plugin.audioHandler.liveStream.isActive) {
 		plugin.audioHandler.liveStream.setDeviceId(resolved);
 	}
 }

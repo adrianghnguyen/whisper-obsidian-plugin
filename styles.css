@@ -40,6 +40,9 @@
 .whisper-status-bar {
 	cursor: pointer;
 }
+.whisper-status-bar:hover {
+	opacity: 0.85;
+}
 .whisper-status-bar svg {
 	width: 14px;
 	height: 14px;
