@@ -186,4 +186,41 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		vi.advanceTimersByTime(500);
 		expect(fake.content()).toBe("Quick word.");
 	});
+
+	it("preserves active second voice pass when late commitFinal for first pass arrives", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		// Sentence 1 spoken
+		streaming.updateInterim("First sentence.");
+		vi.advanceTimersByTime(500); // Sentence 1 auto-committed
+		expect(fake.content()).toBe("First sentence.");
+
+		// Sentence 2 starts streaming
+		streaming.updateInterim("Second sentence.");
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+
+		// Server late finalization for Sentence 1 arrives while Sentence 2 is in interim
+		streaming.commitFinal("First sentence.");
+		// Sentence 2 MUST NOT be overwritten or destroyed!
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+
+		// Sentence 2 gets finalized
+		streaming.commitFinal("Second sentence.");
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+	});
+
+	it("handles cumulative server transcripts across multiple passes without duplicating", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		// Sentence 1
+		streaming.updateInterim("First sentence.");
+		vi.advanceTimersByTime(500); // auto-commit
+		expect(fake.content()).toBe("First sentence.");
+
+		// Server sends cumulative interim containing sentence 1 + sentence 2
+		streaming.updateInterim("First sentence. Second sentence.");
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+
+		// Server sends cumulative final
+		streaming.commitFinal("First sentence. Second sentence.");
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+	});
 });

@@ -78,9 +78,15 @@ export class StreamingEditor {
 	 * replaces from the anchor to the current end of interim text.
 	 * Schedules an auto-commit timer to lock the text if speech pauses.
 	 */
-	updateInterim(text: string): void {
-		if (!text) return;
+	updateInterim(incomingText: string): void {
+		if (!incomingText) return;
 		this.clearAutoCommitTimer();
+
+		let text = incomingText;
+		if (this.lastLockedText && text.startsWith(this.lastLockedText)) {
+			text = text.slice(this.lastLockedText.length).trimStart();
+		}
+		if (!text) return;
 
 		const editor = this.getEditor();
 		if (!editor) return;
@@ -123,11 +129,30 @@ export class StreamingEditor {
 	/**
 	 * Commit finalized text and reset the interim anchor.
 	 */
-	commitFinal(text: string): void {
+	commitFinal(incomingText: string): void {
 		this.clearAutoCommitTimer();
 		const editor = this.getEditor();
 		if (!editor) {
 			this.reset();
+			return;
+		}
+
+		let text = incomingText;
+		if (this.lastLockedText && text.startsWith(this.lastLockedText)) {
+			const remainder = text.slice(this.lastLockedText.length).trimStart();
+			if (!remainder) {
+				// Exact match already locked in document
+				this.lastLockedText = "";
+				this.clearInterimHighlight();
+				return;
+			}
+			text = remainder;
+		}
+
+		// Check if this final event is simply confirming our previously locked segment
+		if (this.lastLockedText && text === this.lastLockedText) {
+			this.lastLockedText = "";
+			this.clearInterimHighlight();
 			return;
 		}
 
@@ -149,13 +174,12 @@ export class StreamingEditor {
 			return;
 		}
 
-		// If interim text was already locked by auto-commit:
+		// If interim text was already locked by auto-commit (no active interim anchor):
 		if (this.lastLockedText) {
 			const locked = this.lastLockedText;
 			this.lastLockedText = "";
 
 			if (text === locked) {
-				// Exact match already locked in document
 				this.clearInterimHighlight();
 				return;
 			}
