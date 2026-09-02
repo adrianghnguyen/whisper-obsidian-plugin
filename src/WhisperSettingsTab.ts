@@ -16,6 +16,7 @@ import {
 	listInputDevices,
 	resolveOsDefaultDeviceId,
 } from "./audioDevices";
+import { getTranscriptionProviderOptions } from "./transcribers/registry";
 import {
 	DEFAULT_LIVE_HIGHLIGHT_COLOR,
 	LIVE_HIGHLIGHT_PRESETS,
@@ -274,11 +275,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createTranscriptionProviderSetting(): void {
-		const providers: Record<TranscriptionProvider, string> = {
-			openai: "OpenAI (Whisper)",
-			gemini: "Gemini API",
-			"gemini-live": "Gemini Live (Streaming)",
-		};
+		const providers = getTranscriptionProviderOptions();
 
 		new Setting(this.containerEl)
 			.setName("Provider")
