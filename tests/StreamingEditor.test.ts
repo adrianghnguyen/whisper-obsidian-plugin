@@ -223,4 +223,22 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		streaming.commitFinal("First sentence. Second sentence.");
 		expect(fake.content()).toBe("First sentence. Second sentence.");
 	});
+
+	it("handles 3+ consecutive speech passes seamlessly", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		// Pass 1
+		streaming.updateInterim("One.");
+		vi.advanceTimersByTime(500);
+		expect(fake.content()).toBe("One.");
+
+		// Pass 2
+		streaming.updateInterim("Two.");
+		vi.advanceTimersByTime(500);
+		expect(fake.content()).toBe("One. Two.");
+
+		// Pass 3
+		streaming.updateInterim("Three.");
+		vi.advanceTimersByTime(500);
+		expect(fake.content()).toBe("One. Two. Three.");
+	});
 });

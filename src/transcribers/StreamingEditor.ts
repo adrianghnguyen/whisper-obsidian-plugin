@@ -25,6 +25,7 @@ export class StreamingEditor {
 	private autoCommitTimer: ReturnType<typeof setTimeout> | null = null;
 	private currentInterimText = "";
 	private lastLockedText = "";
+	private committedSegments: string[] = [];
 
 	constructor(
 		app: App,
@@ -72,20 +73,31 @@ export class StreamingEditor {
 		}
 	}
 
+	private stripCommittedPrefix(text: string): string {
+		let current = text;
+		for (const seg of this.committedSegments) {
+			const trimmedSeg = seg.trim();
+			if (!trimmedSeg) continue;
+			const trimmedCur = current.trimStart();
+			if (trimmedCur.startsWith(trimmedSeg)) {
+				const idx = current.indexOf(trimmedSeg);
+				current = current.slice(idx + trimmedSeg.length).trimStart();
+			}
+		}
+		return current;
+	}
+
 	/**
 	 * Insert or replace interim (partial) text at the cursor.
 	 * On first call, records the anchor position. On subsequent calls,
-	 * replaces from the anchor to the current end of interim text.
+	 * atomically replaces the exact interim range with new text.
 	 * Schedules an auto-commit timer to lock the text if speech pauses.
 	 */
 	updateInterim(incomingText: string): void {
 		if (!incomingText) return;
 		this.clearAutoCommitTimer();
 
-		let text = incomingText;
-		if (this.lastLockedText && text.startsWith(this.lastLockedText)) {
-			text = text.slice(this.lastLockedText.length).trimStart();
-		}
+		const text = this.stripCommittedPrefix(incomingText);
 		if (!text) return;
 
 		const editor = this.getEditor();
@@ -103,13 +115,14 @@ export class StreamingEditor {
 			}
 		}
 
-		// Replace from anchor to current cursor position
-		const cursor = editor.getCursor();
 		const from = this.interimAnchor;
+		const to = {
+			line: from.line,
+			ch: from.ch + this.currentInterimText.length,
+		};
 
-		// Clear the interim range, then insert new text
-		editor.replaceRange("", from, cursor);
-		editor.replaceRange(text, from);
+		// Atomically replace the interim span
+		editor.replaceRange(text, from, to);
 		this.currentInterimText = text;
 
 		// Move cursor to end of inserted text
@@ -137,16 +150,11 @@ export class StreamingEditor {
 			return;
 		}
 
-		let text = incomingText;
-		if (this.lastLockedText && text.startsWith(this.lastLockedText)) {
-			const remainder = text.slice(this.lastLockedText.length).trimStart();
-			if (!remainder) {
-				// Exact match already locked in document
-				this.lastLockedText = "";
-				this.clearInterimHighlight();
-				return;
-			}
-			text = remainder;
+		const text = this.stripCommittedPrefix(incomingText);
+		if (!text) {
+			this.lastLockedText = "";
+			this.clearInterimHighlight();
+			return;
 		}
 
 		// Check if this final event is simply confirming our previously locked segment
@@ -157,16 +165,19 @@ export class StreamingEditor {
 		}
 
 		if (this.interimAnchor) {
-			// Replace the interim span with finalized text
-			const cursor = editor.getCursor();
-			editor.replaceRange("", this.interimAnchor, cursor);
-			editor.replaceRange(text, this.interimAnchor);
+			const from = this.interimAnchor;
+			const to = {
+				line: from.line,
+				ch: from.ch + this.currentInterimText.length,
+			};
+			editor.replaceRange(text, from, to);
 
 			const newPos = {
-				line: this.interimAnchor.line,
-				ch: this.interimAnchor.ch + text.length,
+				line: from.line,
+				ch: from.ch + text.length,
 			};
 			editor.setCursor(newPos);
+			this.committedSegments.push(text);
 			this.interimAnchor = null;
 			this.currentInterimText = "";
 			this.lastLockedText = "";
@@ -199,6 +210,7 @@ export class StreamingEditor {
 						line: from.line,
 						ch: from.ch + text.length,
 					});
+					this.committedSegments.push(text);
 					this.clearInterimHighlight();
 					return;
 				}
@@ -214,6 +226,7 @@ export class StreamingEditor {
 			ch: cursor.ch + separator.length + text.length,
 		};
 		editor.setCursor(newPos);
+		this.committedSegments.push(text);
 		this.clearInterimHighlight();
 	}
 
@@ -224,8 +237,9 @@ export class StreamingEditor {
 	 */
 	lockInterim(): void {
 		this.clearAutoCommitTimer();
-		if (this.interimAnchor) {
+		if (this.interimAnchor && this.currentInterimText) {
 			this.lastLockedText = this.currentInterimText;
+			this.committedSegments.push(this.currentInterimText);
 			this.currentInterimText = "";
 			this.interimAnchor = null;
 		}
@@ -240,6 +254,7 @@ export class StreamingEditor {
 		this.interimAnchor = null;
 		this.currentInterimText = "";
 		this.lastLockedText = "";
+		this.committedSegments = [];
 		this.clearInterimHighlight();
 	}
 
