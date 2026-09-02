@@ -180,7 +180,7 @@ describe("GeminiLiveTranscriber session", () => {
 		});
 		expect(
 			socket.parsed().some((m) => m.realtimeInput?.activityStart)
-		).toBe(true);
+		).toBe(false);
 		expect(audioMsgs[0].realtimeInput.mediaChunks).toBeUndefined();
 	});
 
@@ -235,7 +235,7 @@ describe("GeminiLiveTranscriber session", () => {
 		const end = socket.parsed().find((m) => m.realtimeInput?.audioStreamEnd);
 		expect(end).toEqual({ realtimeInput: { audioStreamEnd: true } });
 		const actEnd = socket.parsed().find((m) => m.realtimeInput?.activityEnd);
-		expect(actEnd).toEqual({ realtimeInput: { activityEnd: {} } });
+		expect(actEnd).toBeUndefined();
 		expect(transcriber.isActive).toBe(false);
 	});
 
@@ -251,5 +251,142 @@ describe("GeminiLiveTranscriber session", () => {
 
 		expect(transcriber.isActive).toBe(false);
 		expect(recorder.started).toBe(false);
+	});
+
+	it("retries a dropped chunk after a send failure and drains the buffered tail", async () => {
+		// Flaky wire: the FIRST audio chunk send fails (the transient drop),
+		// everything else succeeds.
+		let threwOnce = false;
+		vi.spyOn(socket, "send").mockImplementation((data: string) => {
+			const parsed = JSON.parse(data);
+			if (!threwOnce && parsed.realtimeInput?.audio) {
+				threwOnce = true;
+				throw new Error("WebSocket send failed");
+			}
+			socket.sent.push(data);
+		});
+
+		const start = transcriber.startStream();
+		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());
+		socket.open();
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		// Voice chunk 1 transcribed, then a mid-speech pause
+		socket.receive(
+			JSON.stringify({
+				serverContent: { inputTranscription: { text: "first part" } },
+			})
+		);
+		await vi.waitFor(() => expect(editor.finals).toEqual(["first part"]));
+
+		// The next chunk hits the transient send failure; the transcriber
+		// tears down the dead session and opens a fresh one.
+		recorder.emit("ZGF0YQ==");
+		await vi.waitFor(() => expect(socket.readyState).toBe(3));
+		socket.open();
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+
+		// The queued chunk is drained into the re-established session
+		await vi.waitFor(() =>
+			expect(
+				socket.sent.some((s) => s.includes("ZGF0YQ=="))
+			).toBe(true)
+		);
+
+		// Voice chunk 2 after the pause also reaches the wire, in order
+		recorder.emit("bW9yZQ==");
+		await vi.waitFor(() => {
+			const datas = socket.sent
+				.map((s) => JSON.parse(s))
+				.filter((m) => m.realtimeInput?.audio)
+				.map((m) => m.realtimeInput.audio.data as string);
+			expect(datas).toEqual(["ZGF0YQ==", "bW9yZQ=="]);
+		});
+	});
+
+	it("keeps streaming audio after a mid-speech socket close by reconnecting", async () => {
+		const sockets: FakeSocket[] = [];
+		const live = new GeminiLiveTranscriber(makePlugin(), {
+			createSocket: () => {
+				const s = new FakeSocket();
+				sockets.push(s);
+				return s;
+			},
+			recorder,
+			editor,
+			flushDelayMs: 0,
+		});
+
+		const start = live.startStream();
+		await vi.waitFor(() => expect(sockets[0].onopen).toBeTruthy());
+		sockets[0].open();
+		sockets[0].receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		// Chunk 1 transcribed, then the connection drops mid-speech
+		sockets[0].receive(
+			JSON.stringify({
+				serverContent: { inputTranscription: { text: "before drop" } },
+			})
+		);
+		await vi.waitFor(() => expect(editor.finals).toEqual(["before drop"]));
+
+		sockets[0].close();
+
+		// Voice chunk 2 arrives after the drop: the stream must recover —
+		// a fresh socket is created and opened automatically.
+		recorder.emit("cGllY2Uy");
+		await vi.waitFor(() => {
+			expect(sockets.length).toBeGreaterThanOrEqual(2);
+		});
+		await vi.waitFor(() => expect(sockets[1].onopen).toBeTruthy());
+		sockets[1].open();
+		sockets[1].receive(JSON.stringify({ setupComplete: {} }));
+		await vi.waitFor(() => {
+			const audio = sockets[1]
+				.parsed()
+				.filter((m) => m.realtimeInput?.audio);
+			expect(
+				audio.some((m) => m.realtimeInput.audio.data === "cGllY2Uy")
+			).toBe(true);
+		});
+		expect(editor.finals).toEqual(["before drop"]);
+	});
+
+	it("never sends manual activity signals across the session lifecycle", async () => {
+		const start = transcriber.startStream();
+		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());
+		socket.open();
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		// Voice chunk 1, pause, voice chunk 2 (with a mid-session reconnect)
+		recorder.emit("Y2h1bmsx");
+		socket.close();
+		recorder.emit("Y2h1bmsy");
+		await vi.waitFor(() => expect(socket.readyState).toBe(3));
+		socket.open();
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+		await vi.waitFor(() => {
+			const datas = socket.sent
+				.map((s) => JSON.parse(s))
+				.filter((m) => m.realtimeInput?.audio)
+				.map((m) => m.realtimeInput.audio.data);
+			expect(datas).toContain("Y2h1bmsy");
+		});
+
+		await transcriber.stopStream();
+
+		// With server-side automatic VAD enabled, manual activityStart /
+		// activityEnd are not part of the wire protocol for this model.
+		const manualActivity = socket
+			.parsed()
+			.filter(
+				(m) =>
+					m.realtimeInput?.activityStart !== undefined ||
+					m.realtimeInput?.activityEnd !== undefined
+			);
+		expect(manualActivity).toEqual([]);
 	});
 });

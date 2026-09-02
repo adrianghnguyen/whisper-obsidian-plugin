@@ -4,8 +4,6 @@ import { StreamingRecorder } from "./StreamingRecorder";
 import { StreamingEditor } from "./StreamingEditor";
 import {
 	LIVE_WS_URL,
-	activityEndMessage,
-	activityStartMessage,
 	audioStreamEndMessage,
 	decodeWsData,
 	parseLiveMessage,
@@ -46,6 +44,16 @@ export interface LiveTranscriptSink {
 	reset(): void;
 }
 
+/**
+ * Optional recovery hook. Implemented by StreamingEditor: after an audio
+ * interruption (dropped chunk / disconnect) it lets the editor keep the
+ * locked segment as the active transcript prefix so the resumed voice pass
+ * is treated as a continuation of the same utterance, not a split.
+ */
+export interface LiveSessionRecovery {
+	recoverInterim(): void;
+}
+
 export interface LiveSessionDeps {
 	createSocket?: (url: string) => LiveSocket;
 	recorder?: LiveAudioSource;
@@ -70,6 +78,11 @@ export class GeminiLiveTranscriber {
 	private flushDelayMs: number;
 	private streamActive = false;
 	private setupComplete = false;
+	private recovering = false;
+	private pendingChunks: string[] = [];
+	private recoveryFailures = 0;
+	private lastFailoverAt = 0;
+	private static readonly MAX_PENDING_CHUNKS = 240;
 
 	constructor(plugin: Whisper, deps: LiveSessionDeps = {}) {
 		this.plugin = plugin;
@@ -110,10 +123,6 @@ export class GeminiLiveTranscriber {
 		try {
 			await this.connectSocket();
 
-			if (this.socket && this.socket.readyState === WS_OPEN) {
-				this.socket.send(JSON.stringify(activityStartMessage()));
-			}
-
 			await this.recorder.start((pcmChunk) => {
 				this.sendChunk(pcmChunk);
 			});
@@ -137,7 +146,6 @@ export class GeminiLiveTranscriber {
 		this.recorder.stop();
 
 		if (this.socket && this.socket.readyState === WS_OPEN) {
-			this.socket.send(JSON.stringify(activityEndMessage()));
 			this.socket.send(JSON.stringify(audioStreamEndMessage()));
 			if (this.flushDelayMs > 0) {
 				await new Promise((resolve) =>
@@ -214,11 +222,9 @@ export class GeminiLiveTranscriber {
 					);
 					return;
 				}
-				if (this.streamActive) {
-					new Notice("✘ Live transcription disconnected");
-					this.streamActive = false;
-					this.recorder.stop();
-					this.socket = null;
+				if (this.streamActive && !this.recovering) {
+					this.setupComplete = false;
+					void this.failoverChunk(this.pendingChunks[0] ?? "");
 				}
 			};
 		});
@@ -277,21 +283,151 @@ export class GeminiLiveTranscriber {
 			!this.socket ||
 			this.socket.readyState !== WS_OPEN
 		) {
+			this.queueChunk(base64Pcm);
+			const wait = this.recoveryBackoffRemaining();
+			const gap = Date.now() - this.lastFailoverAt;
+			if (
+				!this.recovering &&
+				wait === 0 &&
+				gap >= GeminiLiveTranscriber.MIN_FAILOVER_GAP_MS
+			) {
+				void this.failoverChunk(base64Pcm);
+			}
 			return;
 		}
-		this.socket.send(JSON.stringify(realtimeAudioMessage(base64Pcm)));
+		try {
+			this.socket.send(JSON.stringify(realtimeAudioMessage(base64Pcm)));
+			this.recoveryFailures = 0;
+		} catch (err) {
+			this.queueChunk(base64Pcm);
+			if (!this.recovering) {
+				void this.failoverChunk(base64Pcm, err);
+			}
+		}
+	}
+
+	private queueChunk(base64Pcm: string): void {
+		this.pendingChunks.push(base64Pcm);
+		if (this.pendingChunks.length > GeminiLiveTranscriber.MAX_PENDING_CHUNKS) {
+			this.pendingChunks.shift();
+		}
+	}
+
+	private static readonly RECOVERY_BASE_DELAY_MS = 500;
+	private static readonly RECOVERY_MAX_DELAY_MS = 4000;
+	private static readonly MIN_FAILOVER_GAP_MS = 800;
+
+	/**
+	 * Recover after audio was dropped (send failure, socket not ready, or
+	 * mid-session close). Reconnects while the mic keeps running — chunks
+	 * arriving during recovery are queued — then drains the queue into the
+	 * new session. The queue survives failed attempts and retries with
+	 * backoff on the next incoming chunk, so audio is only lost after a
+	 * sustained outage exceeds the queue capacity. Also tells the editor to
+	 * treat the next transcript as a continuation of the interrupted
+	 * utterance.
+	 */
+	private async failoverChunk(
+		base64Pcm: string,
+		err?: unknown
+	): Promise<void> {
+		if (!this.streamActive || this.recovering) return;
+		const now = Date.now();
+		if (now - this.lastFailoverAt < GeminiLiveTranscriber.MIN_FAILOVER_GAP_MS) {
+			this.queueChunk(base64Pcm);
+			return;
+		}
+		this.recovering = true;
+		this.lastFailoverAt = now;
+		if (this.plugin.settings.debugMode) {
+			console.warn(
+				"[gemini-live] audio chunk dropped, reconnecting",
+				err instanceof Error ? err.message : err ?? ""
+			);
+			new Notice("Live audio paused — reconnecting…");
+		}
+		this.editor.lockInterim();
+		// The editor hook is a UX refinement only; a throw here must not
+		// abort the audio recovery path.
+		try {
+			(
+				this.editor as LiveTranscriptSink & Partial<LiveSessionRecovery>
+			).recoverInterim?.();
+		} catch (err) {
+			console.warn("[gemini-live] editor recovery skipped", err);
+		}
+		try {
+			await this.recoverSession();
+			const queued = this.pendingChunks;
+			this.pendingChunks = [];
+			if (this.socket && this.socket.readyState === WS_OPEN) {
+				this.recoveryFailures = 0;
+				for (const chunk of queued) {
+					this.socket.send(
+						JSON.stringify(realtimeAudioMessage(chunk))
+					);
+				}
+			} else {
+				// Attempt failed: restore the queue so the next chunk retries
+				// (with backoff) instead of silently discarding buffered audio.
+				this.pendingChunks = queued.concat(this.pendingChunks);
+				this.recoveryFailures = Math.min(
+					this.recoveryFailures + 1,
+					6
+				);
+			}
+		} catch (err) {
+			console.error("Live audio recovery failed:", err);
+			this.recoveryFailures = Math.min(this.recoveryFailures + 1, 6);
+			new Notice("✘ Live audio interrupted — could not reconnect");
+		} finally {
+			this.recovering = false;
+		}
+	}
+
+	/** Backoff gate before the next recovery attempt is allowed. */
+	private recoveryBackoffRemaining(): number {
+		if (this.recoveryFailures === 0) return 0;
+		return Math.min(
+			GeminiLiveTranscriber.RECOVERY_BASE_DELAY_MS *
+				2 ** (this.recoveryFailures - 1),
+			GeminiLiveTranscriber.RECOVERY_MAX_DELAY_MS
+		);
+	}
+
+	/**
+	 * Serial recovery: only one attempt at a time, one attempt per socket
+	 * failure so consecutive drops while down do not loop endlessly.
+	 */
+	private async recoverSession(): Promise<void> {
+		this.cleanupSocket();
+		try {
+			await this.connectSocket();
+		} catch (err) {
+			if (this.plugin.settings.debugMode) {
+				console.error("[gemini-live] reconnect failed", err);
+			}
+		}
+	}
+
+	private cleanupSocket(): void {
+		if (this.socket) {
+			const dead = this.socket;
+			this.socket = null;
+			try {
+				dead.onclose = null;
+				dead.onerror = null;
+				dead.onmessage = null;
+				dead.close();
+			} catch {
+				// ignore
+			}
+		}
 	}
 
 	private cleanup(): void {
 		this.setupComplete = false;
-		if (this.socket) {
-			try {
-				this.socket.close();
-			} catch {
-				// ignore
-			}
-			this.socket = null;
-		}
+		this.cleanupSocket();
 		try {
 			this.recorder.stop();
 		} catch {

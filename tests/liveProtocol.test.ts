@@ -12,7 +12,7 @@ import {
 } from "../src/transcribers/liveProtocol";
 
 describe("setupMessage", () => {
-	it("prefixes models/, enables smart transcription, and disables server VAD", () => {
+	it("prefixes models/, enables smart transcription, and keeps server VAD enabled", () => {
 		expect(setupMessage("gemini-3.5-transcribe-live")).toEqual({
 			setup: {
 				model: "models/gemini-3.5-transcribe-live",
@@ -20,18 +20,28 @@ describe("setupMessage", () => {
 				inputAudioTranscription: { mode: "smart" },
 				realtimeInputConfig: {
 					automaticActivityDetection: {
-						disabled: true,
+						disabled: false,
+						startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+						endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+						silenceDurationMs: 2000,
+						prefixPaddingMs: 300,
 					},
 				},
 			},
 		});
 	});
 
-	it("disables automaticActivityDetection so all continuous audio is streamed without premature turn ends", () => {
+	it("configures pause-tolerant automatic VAD so a mid-speech pause does not end the turn", () => {
 		const msg = setupMessage("gemini-3.5-transcribe-live") as any;
-		expect(
-			msg.setup.realtimeInputConfig.automaticActivityDetection.disabled
-		).toBe(true);
+		const aad =
+			msg.setup.realtimeInputConfig.automaticActivityDetection;
+		expect(aad.disabled).toBe(false);
+		// Speech onset detected promptly, turn end only after a long silence
+		expect(aad.startOfSpeechSensitivity).toBe("START_SENSITIVITY_HIGH");
+		expect(aad.endOfSpeechSensitivity).toBe("END_SENSITIVITY_LOW");
+		// Long enough to ride out a natural thinking pause between chunks
+		expect(aad.silenceDurationMs).toBeGreaterThanOrEqual(2000);
+		expect(aad.prefixPaddingMs).toBeGreaterThanOrEqual(200);
 	});
 
 	it("adds language codes when provided", () => {
@@ -74,7 +84,7 @@ describe("realtime audio messages", () => {
 		expect(msg.realtimeInput.mediaChunks).toBeUndefined();
 	});
 
-	it("sends activityStart and activityEnd messages", () => {
+	it("sends activityStart and activityEnd message builders", () => {
 		expect(activityStartMessage()).toEqual({
 			realtimeInput: { activityStart: {} },
 		});
@@ -87,6 +97,20 @@ describe("realtime audio messages", () => {
 		expect(audioStreamEndMessage()).toEqual({
 			realtimeInput: { audioStreamEnd: true },
 		});
+	});
+});
+
+describe("Gemini Live session lifecycle protocol", () => {
+	it("does not send manual activity signals when server VAD is enabled", () => {
+		// Manual activityStart/activityEnd are only valid when automatic VAD
+		// is disabled (docs: Live API capabilities / reference). With Hybrid
+		// VAD the session must not send them; pauses are handled by the
+		// server's silenceDurationMs, and stream interruptions use
+		// audioStreamEnd.
+		const setup = setupMessage("gemini-3.5-transcribe-live") as any;
+		expect(
+			setup.setup.realtimeInputConfig.automaticActivityDetection.disabled
+		).toBe(false);
 	});
 });
 
