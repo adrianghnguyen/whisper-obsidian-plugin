@@ -76,6 +76,43 @@ export class Plugin {
 	async saveData(_data: any) {}
 }
 
+export class Menu {
+	addItem(_cb: (item: MenuItem) => unknown) {
+		return this;
+	}
+	addSeparator() {
+		return this;
+	}
+	setUseNativeMenu(_useNativeMenu: boolean) {
+		return this;
+	}
+	showAtPosition(_position: { x: number; y: number; overlap?: boolean }) {
+		return this;
+	}
+	hide() {}
+	onHide(_callback: () => unknown) {
+		return this;
+	}
+}
+
+export class MenuItem {
+	setTitle(_title: string) {
+		return this;
+	}
+	setIcon(_icon: string | null) {
+		return this;
+	}
+	setChecked(_checked: boolean | null) {
+		return this;
+	}
+	setDisabled(_disabled: boolean) {
+		return this;
+	}
+	onClick(_callback: () => unknown) {
+		return this;
+	}
+}
+
 export class Modal {
 	app: any;
 	containerEl = createElement("div");

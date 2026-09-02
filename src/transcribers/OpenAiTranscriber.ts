@@ -4,7 +4,16 @@ import Whisper from "main";
 import { getCursorContext } from "../utils";
 import { PostProcessor } from "../PostProcessor";
 import { Transcriber, TranscribeResult } from "./Transcriber";
+import type { TranscriptionModuleDescriptor } from "./TranscriptionModule";
 import { isWhisperApiKeyRequired } from "../whisperApiKey";
+
+export const OPENAI_MODULE: TranscriptionModuleDescriptor = {
+	id: "openai",
+	label: "OpenAI (Whisper)",
+	statusBarLabel: "Whisper",
+	isLive: false,
+	order: 0,
+};
 
 export class OpenAiTranscriber implements Transcriber {
 	async transcribe(

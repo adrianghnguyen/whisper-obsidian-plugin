@@ -272,6 +272,15 @@ export default class Whisper extends Plugin {
 				void this.statusBar.cycleDevice();
 			},
 		});
+
+		this.addCommand({
+			id: "cycle-transcription-provider",
+			name: "Cycle transcription provider",
+			icon: "repeat",
+			callback: () => {
+				void this.statusBar.cycleProvider();
+			},
+		});
 	}
 
 	// --- URI Handler ---

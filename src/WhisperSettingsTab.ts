@@ -11,10 +11,12 @@ import {
 	getHostname,
 } from "./SettingsManager";
 import {
+	applyAudioDeviceSelection,
 	formatMicrophoneSettingDesc,
 	listInputDevices,
 	resolveOsDefaultDeviceId,
 } from "./audioDevices";
+import { getTranscriptionProviderOptions } from "./transcribers/registry";
 import {
 	DEFAULT_LIVE_HIGHLIGHT_COLOR,
 	LIVE_HIGHLIGHT_PRESETS,
@@ -273,11 +275,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createTranscriptionProviderSetting(): void {
-		const providers: Record<TranscriptionProvider, string> = {
-			openai: "OpenAI (Whisper)",
-			gemini: "Gemini API",
-			"gemini-live": "Gemini Live (Streaming)",
-		};
+		const providers = getTranscriptionProviderOptions();
 
 		new Setting(this.containerEl)
 			.setName("Provider")
@@ -698,12 +696,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			});
 			dropdown.setValue(currentValue);
 			dropdown.onChange(async (value) => {
-				this.plugin.settings.audioDeviceId = value;
-				await this.settingsManager.saveSettings(this.plugin.settings);
-				// Update recorder with new device ID
-				this.plugin.recorder.setDeviceId(
-					value === "default" ? null : value
-				);
+				await applyAudioDeviceSelection(this.plugin, value);
 				this.display();
 			});
 		});
