@@ -28,4 +28,24 @@ Optional: `$env:DEBUG_WS = "1"` logs truncated raw server messages.
 
 The smoke test also accepts optional VAD overrides so pause-tolerance behavior can be verified against the real network: `$env:GEMINI_LIVE_SILENCE_MS = "2500"` enables `realtimeInputConfig.automaticActivityDetection` (with `GEMINI_LIVE_END_SENSITIVITY`, `GEMINI_LIVE_START_SENSITIVITY`, `GEMINI_LIVE_PREFIX_PADDING_MS` as further overrides). Omit `GEMINI_LIVE_SILENCE_MS` for plain server defaults. Note: on `gemini-3.1-flash-live-preview` `silenceDurationMs` has been reported as ignored (js-genai#1467); `gemini-3.5-transcribe-live` honors it per the capabilities guide.
 
-Vault catalog: `Notes/obsidian plugin tweaks.md`.
+## Secret storage ids (this plugin)
+
+API keys live in Obsidian secret storage (`app.secretStorage`), never in `data.json` — saved values are stripped by design. The ids are defined in `SECRET_IDS` in `src/SettingsManager.ts`:
+
+| Settings field | Secret id |
+|---|---|
+| `openAiApiKey` | `openai-api-key` |
+| `geminiApiKey` (REST + Live, one Google AI Studio key) | `gemini-api-key` |
+| `anthropicApiKey` | `anthropic-api-key` |
+| `postProcessingApiKey` | `post-processing-api-key` |
+| Whisper transcription key (OpenAI-compatible) | via `whisperApiKeySecretId` setting; id is stored per-user, legacy migration maps old id `api-key` |
+
+Probing from the CLI (length only — never print the value):
+
+```powershell
+obsidian eval vault=plugin-sandbox-Obsidian code="JSON.stringify({len: (app.secretStorage.getSecret('gemini-api-key') || '').length})"
+```
+
+To run the smoke test without touching disk: pull the secret into a session-only env var from the eval output, then `rm env:GEMINI_API_KEY` when done. Smoke script success semantics: exits 0 when setup completed and at least one `[FINAL]` arrived (2 s grace); the transcribe model never emits `turnComplete`, so do not wait on it.
+
+Vault catalog: `Notes/obsidian plugin tweaks.md`. Project RCA note: `Notes/Obsidian whisper plugin tweaks.md`.
