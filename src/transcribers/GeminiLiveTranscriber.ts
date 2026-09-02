@@ -4,6 +4,8 @@ import { StreamingRecorder } from "./StreamingRecorder";
 import { StreamingEditor } from "./StreamingEditor";
 import {
 	LIVE_WS_URL,
+	activityEndMessage,
+	activityStartMessage,
 	audioStreamEndMessage,
 	decodeWsData,
 	parseLiveMessage,
@@ -108,6 +110,10 @@ export class GeminiLiveTranscriber {
 		try {
 			await this.connectSocket();
 
+			if (this.socket && this.socket.readyState === WS_OPEN) {
+				this.socket.send(JSON.stringify(activityStartMessage()));
+			}
+
 			await this.recorder.start((pcmChunk) => {
 				this.sendChunk(pcmChunk);
 			});
@@ -131,6 +137,7 @@ export class GeminiLiveTranscriber {
 		this.recorder.stop();
 
 		if (this.socket && this.socket.readyState === WS_OPEN) {
+			this.socket.send(JSON.stringify(activityEndMessage()));
 			this.socket.send(JSON.stringify(audioStreamEndMessage()));
 			if (this.flushDelayMs > 0) {
 				await new Promise((resolve) =>

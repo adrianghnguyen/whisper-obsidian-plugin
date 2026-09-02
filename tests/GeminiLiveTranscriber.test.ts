@@ -172,12 +172,15 @@ describe("GeminiLiveTranscriber session", () => {
 		recorder.emit("dGVzdA==");
 		const audioMsgs = socket
 			.parsed()
-			.filter((m) => m.realtimeInput);
+			.filter((m) => m.realtimeInput?.audio);
 		expect(audioMsgs).toHaveLength(1);
 		expect(audioMsgs[0].realtimeInput.audio).toEqual({
 			mimeType: "audio/pcm;rate=16000",
 			data: "dGVzdA==",
 		});
+		expect(
+			socket.parsed().some((m) => m.realtimeInput?.activityStart)
+		).toBe(true);
 		expect(audioMsgs[0].realtimeInput.mediaChunks).toBeUndefined();
 	});
 
@@ -231,6 +234,8 @@ describe("GeminiLiveTranscriber session", () => {
 		await transcriber.stopStream();
 		const end = socket.parsed().find((m) => m.realtimeInput?.audioStreamEnd);
 		expect(end).toEqual({ realtimeInput: { audioStreamEnd: true } });
+		const actEnd = socket.parsed().find((m) => m.realtimeInput?.activityEnd);
+		expect(actEnd).toEqual({ realtimeInput: { activityEnd: {} } });
 		expect(transcriber.isActive).toBe(false);
 	});
 

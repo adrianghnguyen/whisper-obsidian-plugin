@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+	activityEndMessage,
+	activityStartMessage,
 	audioStreamEndMessage,
 	decodeWsData,
 	floatToPcm16Base64,
@@ -10,21 +12,26 @@ import {
 } from "../src/transcribers/liveProtocol";
 
 describe("setupMessage", () => {
-	it("prefixes models/ and enables smart transcription", () => {
+	it("prefixes models/, enables smart transcription, and disables server VAD", () => {
 		expect(setupMessage("gemini-3.5-transcribe-live")).toEqual({
 			setup: {
 				model: "models/gemini-3.5-transcribe-live",
 				generationConfig: { responseModalities: ["TEXT"] },
 				inputAudioTranscription: { mode: "smart" },
+				realtimeInputConfig: {
+					automaticActivityDetection: {
+						disabled: true,
+					},
+				},
 			},
 		});
 	});
 
-	it("omits realtimeInputConfig by default so server uses native low-latency VAD", () => {
+	it("disables automaticActivityDetection so all continuous audio is streamed without premature turn ends", () => {
+		const msg = setupMessage("gemini-3.5-transcribe-live") as any;
 		expect(
-			(setupMessage("gemini-3.5-transcribe-live") as any).setup
-				.realtimeInputConfig
-		).toBeUndefined();
+			msg.setup.realtimeInputConfig.automaticActivityDetection.disabled
+		).toBe(true);
 	});
 
 	it("adds language codes when provided", () => {
@@ -65,6 +72,15 @@ describe("realtime audio messages", () => {
 			data: "abc123",
 		});
 		expect(msg.realtimeInput.mediaChunks).toBeUndefined();
+	});
+
+	it("sends activityStart and activityEnd messages", () => {
+		expect(activityStartMessage()).toEqual({
+			realtimeInput: { activityStart: {} },
+		});
+		expect(activityEndMessage()).toEqual({
+			realtimeInput: { activityEnd: {} },
+		});
 	});
 
 	it("ends the stream with audioStreamEnd", () => {

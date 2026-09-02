@@ -48,6 +48,11 @@ export function setupMessage(
 			responseModalities: ["TEXT"],
 		},
 		inputAudioTranscription,
+		realtimeInputConfig: {
+			automaticActivityDetection: {
+				disabled: true,
+			},
+		},
 	};
 
 	const prompt = options.systemPrompt?.trim();
@@ -58,6 +63,22 @@ export function setupMessage(
 	}
 
 	return { setup };
+}
+
+export function activityStartMessage(): Record<string, unknown> {
+	return {
+		realtimeInput: {
+			activityStart: {},
+		},
+	};
+}
+
+export function activityEndMessage(): Record<string, unknown> {
+	return {
+		realtimeInput: {
+			activityEnd: {},
+		},
+	};
 }
 
 export function realtimeAudioMessage(
