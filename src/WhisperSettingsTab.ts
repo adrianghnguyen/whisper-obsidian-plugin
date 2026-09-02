@@ -11,6 +11,7 @@ import {
 	getHostname,
 } from "./SettingsManager";
 import {
+	applyAudioDeviceSelection,
 	formatMicrophoneSettingDesc,
 	listInputDevices,
 	resolveOsDefaultDeviceId,
@@ -698,12 +699,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			});
 			dropdown.setValue(currentValue);
 			dropdown.onChange(async (value) => {
-				this.plugin.settings.audioDeviceId = value;
-				await this.settingsManager.saveSettings(this.plugin.settings);
-				// Update recorder with new device ID
-				this.plugin.recorder.setDeviceId(
-					value === "default" ? null : value
-				);
+				await applyAudioDeviceSelection(this.plugin, value);
 				this.display();
 			});
 		});

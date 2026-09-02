@@ -1,7 +1,22 @@
+import type Whisper from "main";
+
 export type InputDeviceOption = {
 	id: string;
 	label: string;
 };
+
+export async function applyAudioDeviceSelection(
+	plugin: Whisper,
+	deviceId: string
+): Promise<void> {
+	plugin.settings.audioDeviceId = deviceId;
+	await plugin.settingsManager.saveSettings(plugin.settings);
+	const resolved = deviceId === "default" ? null : deviceId;
+	plugin.recorder.setDeviceId(resolved);
+	if (plugin.audioHandler.liveStream.isActive()) {
+		plugin.audioHandler.liveStream.setDeviceId(resolved);
+	}
+}
 
 export async function listInputDevices(): Promise<InputDeviceOption[]> {
 	const list: InputDeviceOption[] = [{ id: "default", label: "Default" }];

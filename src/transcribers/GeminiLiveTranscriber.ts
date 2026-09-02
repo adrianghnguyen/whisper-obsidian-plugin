@@ -115,6 +115,10 @@ export class GeminiLiveTranscriber {
 		return this.streamActive;
 	}
 
+	setDeviceId(deviceId: string | null): void {
+		this.recorder.setDeviceId(deviceId);
+	}
+
 	async startStream(): Promise<void> {
 		if (this.streamActive) return;
 
