@@ -25,6 +25,12 @@ export class StreamingEditor {
 	private autoCommitTimer: ReturnType<typeof setTimeout> | null = null;
 	private currentInterimText = "";
 	private lastLockedText = "";
+	private lastLockedTextLength = 0;
+	private lastLockedRange: {
+		line: number;
+		chFrom: number;
+		chTo: number;
+	} | null = null;
 	private committedSegments: string[] = [];
 
 	constructor(
@@ -165,6 +171,16 @@ export class StreamingEditor {
 		}
 
 		if (this.interimAnchor) {
+			// A final that only re-confirms the locked prefix while a fresh
+			// interim is active (mid-pause split finals) must not overwrite
+			// the pending interim text with the stale prefix.
+			if (
+				this.lastLockedText &&
+				text === this.lastLockedText &&
+				this.currentInterimText
+			) {
+				return;
+			}
 			const from = this.interimAnchor;
 			const to = {
 				line: from.line,
@@ -238,12 +254,59 @@ export class StreamingEditor {
 	lockInterim(): void {
 		this.clearAutoCommitTimer();
 		if (this.interimAnchor && this.currentInterimText) {
+			const from = this.interimAnchor;
 			this.lastLockedText = this.currentInterimText;
+			this.lastLockedTextLength = this.currentInterimText.length;
+			this.lastLockedRange = {
+				line: from.line,
+				chFrom: from.ch,
+				chTo: from.ch + this.currentInterimText.length,
+			};
 			this.committedSegments.push(this.currentInterimText);
 			this.currentInterimText = "";
 			this.interimAnchor = null;
 		}
 		this.clearInterimHighlight();
+	}
+
+	/**
+	 * Called by the transcriber after an audio interruption (dropped chunk
+	 * or reconnect). The auto-commit already locked what was on screen; the
+	 * locked text becomes the active transcript prefix again so the next
+	 * interim/final — which typically repeats the whole utterance — is
+	 * treated as a continuation of the same voice pass instead of a split.
+	 */
+	recoverInterim(): void {
+		this.clearAutoCommitTimer();
+		if (this.lastLockedText && !this.interimAnchor) {
+			this.interimAnchor = this.lastRecoveryAnchor;
+			this.currentInterimText = this.lastLockedText;
+			// The locked text lives in the live interim span again; drop it
+			// from committed history so stripCommittedPrefix does not strip
+			// it out of the next cumulative transcript update.
+			const idx = this.committedSegments.lastIndexOf(
+				this.lastLockedText
+			);
+			if (idx >= 0) {
+				this.committedSegments.splice(idx, 1);
+			}
+			this.lastLockedText = "";
+			this.lastLockedTextLength = 0;
+			this.lastLockedRange = null;
+		}
+		this.clearInterimHighlight();
+	}
+
+	private get lastRecoveryAnchor(): {
+		line: number;
+		ch: number;
+	} | null {
+		if (!this.lastLockedRange) return null;
+		const { line, chFrom, chTo } = this.lastLockedRange;
+		return {
+			line,
+			ch: chTo - this.lastLockedTextLength,
+		};
 	}
 
 	/**
@@ -254,6 +317,8 @@ export class StreamingEditor {
 		this.interimAnchor = null;
 		this.currentInterimText = "";
 		this.lastLockedText = "";
+		this.lastLockedTextLength = 0;
+		this.lastLockedRange = null;
 		this.committedSegments = [];
 		this.clearInterimHighlight();
 	}

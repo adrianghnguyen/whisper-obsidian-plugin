@@ -241,4 +241,57 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		vi.advanceTimersByTime(500);
 		expect(fake.content()).toBe("One. Two. Three.");
 	});
+
+	it("continues the same voice pass after a long pause instead of splitting it", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		// Sentence 1 spoken, pause longer than the pause delay
+		streaming.updateInterim("The quick brown fox");
+		vi.advanceTimersByTime(5000);
+
+		// Voice chunk 2 after the long pause: server keeps refining the SAME
+		// utterance, so its next interim already contains the locked prefix.
+		streaming.updateInterim("The quick brown fox jumps over the lazy dog");
+		expect(fake.content()).toBe(
+			"The quick brown fox jumps over the lazy dog"
+		);
+
+		// The utterance finalizes as one segment
+		streaming.commitFinal("The quick brown fox jumps over the lazy dog");
+		expect(fake.content()).toBe(
+			"The quick brown fox jumps over the lazy dog"
+		);
+		expect(fake.content().split("The quick").length - 1).toBe(1);
+	});
+
+	it("keeps refining after auto-commit when server final only confirms the prefix", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("alpha beta");
+		vi.advanceTimersByTime(5000);
+
+		streaming.updateInterim("alpha beta gamma");
+		expect(fake.content()).toBe("alpha beta gamma");
+
+		// Server commits only the locked prefix (chunk 1 final, chunk 2 pending)
+		streaming.commitFinal("alpha beta");
+		expect(fake.content()).toBe("alpha beta gamma");
+
+		// Chunk 2 finalizes without repeating the prefix
+		streaming.commitFinal("gamma");
+		expect(fake.content()).toBe("alpha beta gamma");
+	});
+
+	it("does not corrupt a fresh cumulative transcript that merely starts similarly", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("first thought");
+		vi.advanceTimersByTime(5000);
+
+		// Server restarts its transcript from scratch with similar wording:
+		// the newest full text must survive verbatim, never truncated into
+		// a hybrid of committed prefix + new text.
+		streaming.updateInterim("first impressions matter");
+		const content = fake.content();
+		expect(content).toContain("first impressions matter");
+		expect(content.includes("first impressions")).toBe(true);
+		expect(/first impressions matter$/.test(content.trim())).toBe(true);
+	});
 });

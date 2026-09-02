@@ -7,6 +7,11 @@
 * **Pause tolerance for Gemini Live.** A new Advanced setting controls how long the Live API waits through silence before committing your words to the note. Higher settings keep stuttering or thinking pauses from splitting sentences mid-thought (maps to `END_SENSITIVITY_LOW` plus a longer silence window); Medium (1.5 s) is the new default.
 * **Space between streamed segments.** Consecutive Gemini Live transcription segments no longer run together (e.g. `Hello worldHow are you`); a separating space is inserted between segments when needed.
 
+### Bug Fixes
+
+* **Speech after a mid-sentence pause is no longer lost.** The Live session now keeps the API's automatic voice activity detection enabled with a long silence window, so a stutter or thinking pause between voice chunks no longer drops the rest of the utterance; what you say after the pause continues the same sentence instead of vanishing.
+* **Live audio recovers from connection drops.** If the WebSocket hiccups or a chunk fails to send mid-recording, the plugin reconnects automatically while the microphone keeps running, buffers the interrupted audio (up to ~24 s), replays it once the connection returns, and continues the sentence in the note instead of silently ending the stream.
+
 ## [1.10.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.9.4...1.10.0) (2026-08-31)
 
 ### Features

@@ -80,6 +80,21 @@ async function main() {
 
   const ws = new WebSocket(wsUrl);
   let setupDone = false;
+  let finalsReceived = 0;
+  let allChunksSent = false;
+
+  const finish = (code) => {
+    console.log(
+      `\nSession summary: setup=${setupDone}, finals=${finalsReceived}.`
+    );
+    console.log(
+      code === 0
+        ? "SMOKE TEST PASSED"
+        : "SMOKE TEST FAILED (no finals received)"
+    );
+    ws.close();
+    process.exit(code);
+  };
 
   const sendChunks = () => {
     console.log("Streaming audio chunks...");
@@ -87,6 +102,7 @@ async function main() {
     const interval = setInterval(() => {
       if (chunkIndex >= chunks.length) {
         clearInterval(interval);
+        allChunksSent = true;
         ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
         console.log("All chunks sent. Waiting for transcription...");
         return;
@@ -169,10 +185,21 @@ async function main() {
       sc?.interimInputTranscription?.text ?? msg.interimInputTranscription?.text;
     const final = sc?.inputTranscription?.text ?? msg.inputTranscription?.text;
     if (interim) console.log(`[INTERIM] ${interim}`);
-    if (final) console.log(`[FINAL]   ${final}`);
+    if (final) {
+      finalsReceived += 1;
+      console.log(`[FINAL]   ${final}`);
+    }
+    // turnComplete is a conversational-model signal (the model finished
+    // generating a response turn). The transcribe models never emit it —
+    // success here means: setup complete, all chunks sent, and at least one
+    // final transcription received.
     if (sc?.turnComplete) {
       console.log("\nTurn complete.");
-      ws.close();
+      finish(0);
+    }
+    if (allChunksSent && finalsReceived > 0) {
+      // Give trailing finals a moment to arrive, then report success.
+      setTimeout(() => finish(0), 2000);
     }
   });
 
@@ -182,13 +209,12 @@ async function main() {
 
   ws.addEventListener("close", () => {
     console.log("WebSocket closed.");
-    process.exit(setupDone ? 0 : 1);
+    process.exit(setupDone && finalsReceived > 0 ? 0 : 1);
   });
 
   setTimeout(() => {
-    console.log("Timeout reached.");
-    ws.close();
-    process.exit(1);
+    console.log("Timeout reached — no final transcription received.");
+    finish(1);
   }, 60000);
 }
 
