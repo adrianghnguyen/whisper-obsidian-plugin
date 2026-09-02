@@ -14,6 +14,7 @@ import {
 	parseCommaOrLineList,
 	parseLanguageCodes,
 } from "./geminiPrompt";
+import type { TranscriptionModuleDescriptor } from "./TranscriptionModule";
 
 const SETUP_TIMEOUT_MS = 10000;
 const WS_OPEN = 1;
@@ -60,6 +61,14 @@ export interface LiveSessionDeps {
 	editor?: LiveTranscriptSink;
 	flushDelayMs?: number;
 }
+
+export const GEMINI_LIVE_MODULE: TranscriptionModuleDescriptor = {
+	id: "gemini-live",
+	label: "Gemini Live (Streaming)",
+	statusBarLabel: "Gemini Live",
+	isLive: true,
+	order: 2,
+};
 
 /**
  * GeminiLiveTranscriber

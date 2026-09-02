@@ -6,7 +6,16 @@ import {
 	parseLanguageCodes,
 } from "./geminiPrompt";
 import { Transcriber, TranscribeResult } from "./Transcriber";
+import type { TranscriptionModuleDescriptor } from "./TranscriptionModule";
 import type { GeminiTranscriptionMode } from "../SettingsManager";
+
+export const GEMINI_MODULE: TranscriptionModuleDescriptor = {
+	id: "gemini",
+	label: "Gemini API",
+	statusBarLabel: "Gemini",
+	isLive: false,
+	order: 1,
+};
 
 export interface GeminiInteractionPayload {
 	model: string;
