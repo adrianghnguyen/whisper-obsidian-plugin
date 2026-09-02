@@ -20,4 +20,23 @@ describe("RecordingStatus enum", () => {
 			"abcdefghijklmnopq..."
 		);
 	});
+
+	it("formats combined provider and microphone labels", async () => {
+		const { StatusBar } = await import("../src/StatusBar");
+		const bar = Object.create(StatusBar.prototype) as InstanceType<
+			typeof StatusBar
+		>;
+		expect(bar.combinedStatusLabel("Whisper", "Default")).toBe(
+			"Whisper · Default"
+		);
+		expect(bar.combinedStatusLabel("Gemini Live", "Default")).toBe(
+			"Gemini Live · Default"
+		);
+		expect(
+			bar.combinedStatusLabel(
+				"Whisper",
+				"My Very Long Microphone Name Here"
+			)
+		).toBe("Whisper · My Very Long Mi...");
+	});
 });
