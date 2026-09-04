@@ -490,8 +490,8 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private createGeminiModelSetting(): void {
 		this.createTextSetting(
 			"Gemini model",
-			"Model ID for Gemini transcription (e.g. gemini-3.5-transcribe-preview)",
-			"gemini-3.5-transcribe-preview",
+			"Model ID for Gemini transcription (e.g. gemini-3.5-transcribe)",
+			"gemini-3.5-transcribe",
 			this.plugin.settings.geminiModel,
 			async (value) => {
 				this.plugin.settings.geminiModel = value;

@@ -9,6 +9,7 @@
 
 ### Bug Fixes
 
+* **Gemini batch transcription model 404.** The default (and saved) Interactions API model was still `gemini-3.5-transcribe-preview`, which Google removed; settings now use `gemini-3.5-transcribe` and migrate the old id on load.
 * **Speech after a mid-sentence pause is no longer lost.** The Live session now keeps the API's automatic voice activity detection enabled with a long silence window, so a stutter or thinking pause between voice chunks no longer drops the rest of the utterance; what you say after the pause continues the same sentence instead of vanishing.
 * **Live audio recovers from connection drops.** If the WebSocket hiccups or a chunk fails to send mid-recording, the plugin reconnects automatically while the microphone keeps running, buffers the interrupted audio (up to ~24 s), replays it once the connection returns, and continues the sentence in the note instead of silently ending the stream.
 

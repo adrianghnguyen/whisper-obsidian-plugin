@@ -113,7 +113,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	whisperApiKeySecretId: "",
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
-	geminiModel: "gemini-3.5-transcribe-preview",
+	geminiModel: "gemini-3.5-transcribe",
 	geminiLiveModel: "gemini-3.5-transcribe-live",
 	geminiTranscriptionMode: "smart",
 	geminiLanguageCodes: "",
@@ -363,6 +363,12 @@ export class SettingsManager {
 				}
 			}
 			delete (legacy as any).geminiLiveVadTolerance;
+			migrated = true;
+		}
+
+		// Google renamed the batch transcription model off the -preview suffix.
+		if (settings.geminiModel === "gemini-3.5-transcribe-preview") {
+			settings.geminiModel = "gemini-3.5-transcribe";
 			migrated = true;
 		}
 

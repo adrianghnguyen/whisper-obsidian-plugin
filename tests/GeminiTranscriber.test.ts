@@ -5,7 +5,7 @@ describe("buildGeminiInteractionPayload", () => {
 	it("sends audio-only input with smart transcription config", () => {
 		const payload = buildGeminiInteractionPayload(
 			{
-				geminiModel: "gemini-3.5-transcribe-preview",
+				geminiModel: "gemini-3.5-transcribe",
 				geminiTranscriptionMode: "smart",
 				geminiLanguageCodes: "",
 				geminiCustomVocabulary: "",
@@ -17,7 +17,7 @@ describe("buildGeminiInteractionPayload", () => {
 		);
 
 		expect(payload).toEqual({
-			model: "gemini-3.5-transcribe-preview",
+			model: "gemini-3.5-transcribe",
 			input: [
 				{
 					type: "audio",
@@ -36,7 +36,7 @@ describe("buildGeminiInteractionPayload", () => {
 	it("includes vocabulary and language hints from settings", () => {
 		const payload = buildGeminiInteractionPayload(
 			{
-				geminiModel: "gemini-3.5-transcribe-preview",
+				geminiModel: "gemini-3.5-transcribe",
 				geminiTranscriptionMode: "smart",
 				geminiLanguageCodes: "en",
 				geminiCustomVocabulary: "ZyntriQix, Digique Plus",
@@ -57,7 +57,7 @@ describe("buildGeminiInteractionPayload", () => {
 	it("adds verbatim-only diarization and timestamps", () => {
 		const payload = buildGeminiInteractionPayload(
 			{
-				geminiModel: "gemini-3.5-transcribe-preview",
+				geminiModel: "gemini-3.5-transcribe",
 				geminiTranscriptionMode: "verbatim",
 				geminiLanguageCodes: "",
 				geminiCustomVocabulary: "",

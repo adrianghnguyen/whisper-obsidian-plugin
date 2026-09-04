@@ -16,6 +16,7 @@ describe("DEFAULT_SETTINGS", () => {
 			"https://api.openai.com/v1/audio/transcriptions"
 		);
 		expect(DEFAULT_SETTINGS.model).toBe("whisper-1");
+		expect(DEFAULT_SETTINGS.geminiModel).toBe("gemini-3.5-transcribe");
 	});
 
 	it("defaults language to empty (auto-detect)", () => {

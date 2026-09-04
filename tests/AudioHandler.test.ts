@@ -358,22 +358,22 @@ describe("Gemini — buildGeminiRequestBody", () => {
 
 	it("includes the configured model", () => {
 		const body = buildGeminiRequestBody(
-			"gemini-3.5-transcribe-preview",
+			"gemini-3.5-transcribe",
 			"dGVzdA==",
 			"webm"
 		);
-		expect(body.model).toBe("gemini-3.5-transcribe-preview");
+		expect(body.model).toBe("gemini-3.5-transcribe");
 	});
 
 	it("includes base64 audio and format", () => {
-		const body = buildGeminiRequestBody("gemini-3.5-transcribe-preview", "dGVzdA==", "wav");
+		const body = buildGeminiRequestBody("gemini-3.5-transcribe", "dGVzdA==", "wav");
 		const inputAudio = (body.messages[0] as any).content[1].input_audio;
 		expect(inputAudio.data).toBe("dGVzdA==");
 		expect(inputAudio.format).toBe("wav");
 	});
 
 	it("includes the transcription instruction text", () => {
-		const body = buildGeminiRequestBody("gemini-3.5-transcribe-preview", "dGVzdA==", "mp3");
+		const body = buildGeminiRequestBody("gemini-3.5-transcribe", "dGVzdA==", "mp3");
 		expect((body.messages[0] as any).content[0].text).toBe("Transcribe this audio.");
 	});
 
