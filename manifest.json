@@ -4,8 +4,7 @@
   "version": "1.11.0",
   "minAppVersion": "1.12.7",
   "description": "Speech-to-text in Obsidian using OpenAI Whisper",
-  "author": "Nik Danilov",
-  "authorUrl": "https://nikdanilov.com",
-  "fundingUrl": "https://ko-fi.com/nikdanilov",
+  "author": "Adrian Nguyen (original by Nik Danilov)",
+  "authorUrl": "https://github.com/adrianghnguyen/whisper-obsidian-plugin",
   "isDesktopOnly": false
 }
