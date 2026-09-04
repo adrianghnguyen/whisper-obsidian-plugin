@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.11.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.10.0...1.11.0) (2026-09-04)
+
 ### Features
 
 * **Pause tolerance for Gemini Live.** A new Advanced setting controls how long the Live API waits through silence before committing your words to the note. Higher settings keep stuttering or thinking pauses from splitting sentences mid-thought (maps to `END_SENSITIVITY_LOW` plus a longer silence window); Medium (1.5 s) is the new default.
