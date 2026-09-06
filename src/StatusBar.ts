@@ -265,12 +265,13 @@ export class StatusBar {
 			module.statusBarLabel,
 			micFull
 		);
+		const isRecording = this.status === RecordingStatus.Recording;
 		let text = core;
-		let color = "green";
+		let color: string | null = "green";
 		switch (this.status) {
 			case RecordingStatus.Recording:
 				text = `Recording · ${core}`;
-				color = "red";
+				color = null; // CSS owns soft red + pulse
 				break;
 			case RecordingStatus.Paused:
 				text = `Paused · ${core}`;
@@ -288,7 +289,15 @@ export class StatusBar {
 		}
 		const tooltip = `${module.label} — ${micFull}\nClick to cycle provider · Hover for microphone`;
 		this.statusBarItem.empty();
-		this.statusBarItem.style.color = color;
+		this.statusBarItem.toggleClass(
+			"whisper-status-bar--recording",
+			isRecording
+		);
+		if (color) {
+			this.statusBarItem.style.color = color;
+		} else {
+			this.statusBarItem.style.removeProperty("color");
+		}
 		setIcon(this.statusBarItem, "mic");
 		this.statusBarItem.appendText(text);
 		this.statusBarItem.setAttribute("title", tooltip);
