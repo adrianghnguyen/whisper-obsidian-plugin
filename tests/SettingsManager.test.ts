@@ -33,6 +33,11 @@ describe("DEFAULT_SETTINGS", () => {
 		expect(DEFAULT_SETTINGS.debugMode).toBe(false);
 	});
 
+	it("enables all transcription providers by default", () => {
+		expect(DEFAULT_SETTINGS.disabledTranscriptionProviders).toEqual([]);
+		expect(DEFAULT_SETTINGS.transcriptionProvider).toBe("openai");
+	});
+
 	it("has safe Whisper API param defaults", () => {
 		expect(DEFAULT_SETTINGS.temperature).toBe(0);
 		expect(DEFAULT_SETTINGS.responseFormat).toBe("json");

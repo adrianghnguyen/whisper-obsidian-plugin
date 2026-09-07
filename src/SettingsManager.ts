@@ -4,6 +4,10 @@ import {
 	migrateLegacyWhisperSecretId,
 	resolveWhisperApiKey,
 } from "./whisperApiKey";
+import {
+	getFirstEnabledProvider,
+	isProviderEnabled,
+} from "./transcribers/registry";
 
 export { LEGACY_WHISPER_SECRET_ID };
 
@@ -47,6 +51,7 @@ export interface ApiKeysSettings {
 export interface WhisperSettings {
 	// Provider
 	transcriptionProvider: TranscriptionProvider;
+	disabledTranscriptionProviders: TranscriptionProvider[];
 	// API
 	whisperApiKeySecretId: string;
 	apiUrl: string;
@@ -109,6 +114,7 @@ export const DEFAULT_API_KEYS: ApiKeysSettings = {
 
 export const DEFAULT_WHISPER: WhisperSettings = {
 	transcriptionProvider: "openai",
+	disabledTranscriptionProviders: [],
 	whisperApiKeySecretId: "",
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
@@ -446,6 +452,18 @@ export class SettingsManager {
 		}
 
 		if (this.migrateGeminiSettings(settings)) {
+			persist = true;
+		}
+
+		if (!Array.isArray(settings.disabledTranscriptionProviders)) {
+			settings.disabledTranscriptionProviders = [];
+			persist = true;
+		}
+
+		if (
+			!isProviderEnabled(settings, settings.transcriptionProvider)
+		) {
+			settings.transcriptionProvider = getFirstEnabledProvider(settings);
 			persist = true;
 		}
 

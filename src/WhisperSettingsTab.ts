@@ -1,5 +1,5 @@
 import Whisper from "main";
-import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import {
 	SettingsManager,
 	TranscriptionProvider,
@@ -16,7 +16,12 @@ import {
 	listInputDevices,
 	resolveOsDefaultDeviceId,
 } from "./audioDevices";
-import { getTranscriptionProviderOptions } from "./transcribers/registry";
+import {
+	TRANSCRIPTION_MODULES,
+	getFirstEnabledProvider,
+	getTranscriptionProviderOptions,
+	isProviderEnabled,
+} from "./transcribers/registry";
 import {
 	DEFAULT_LIVE_HIGHLIGHT_COLOR,
 	LIVE_HIGHLIGHT_PRESETS,
@@ -335,10 +340,10 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createTranscriptionProviderSetting(): void {
-		const providers = getTranscriptionProviderOptions();
+		const providers = getTranscriptionProviderOptions(this.plugin.settings);
 
 		new Setting(this.containerEl)
-			.setName("Provider")
+			.setName("Active provider")
 			.setDesc(
 				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini API and Gemini Live share one Google AI Studio key. Live streams in real time."
 			)
@@ -355,6 +360,61 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						this.display();
 					});
 			});
+
+		for (const module of TRANSCRIPTION_MODULES) {
+			new Setting(this.containerEl)
+				.setName(module.label)
+				.setDesc(
+					"When off, this provider is hidden from the dropdown and status-bar cycle."
+				)
+				.addToggle((toggle) => {
+					toggle
+						.setValue(
+							isProviderEnabled(this.plugin.settings, module.id)
+						)
+						.onChange(async (enabled) => {
+							const disabled = [
+								...(this.plugin.settings
+									.disabledTranscriptionProviders ?? []),
+							];
+							if (!enabled) {
+								if (
+									!disabled.includes(module.id) &&
+									TRANSCRIPTION_MODULES.every(
+										(m) =>
+											m.id === module.id ||
+											disabled.includes(m.id)
+									)
+								) {
+									new Notice(
+										"Keep at least one provider enabled"
+									);
+									toggle.setValue(true);
+									return;
+								}
+								if (!disabled.includes(module.id)) {
+									disabled.push(module.id);
+								}
+								this.plugin.settings.disabledTranscriptionProviders =
+									disabled;
+								if (
+									this.plugin.settings.transcriptionProvider ===
+									module.id
+								) {
+									this.plugin.settings.transcriptionProvider =
+										getFirstEnabledProvider(
+											this.plugin.settings
+										);
+								}
+							} else {
+								this.plugin.settings.disabledTranscriptionProviders =
+									disabled.filter((id) => id !== module.id);
+							}
+							await this.save();
+							this.display();
+						});
+				});
+		}
 	}
 
 	private createGeminiLiveModelSetting(): void {

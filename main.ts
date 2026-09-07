@@ -8,6 +8,7 @@ import { NativeAudioRecorder } from "src/AudioRecorder";
 import { RecordingStatus, StatusBar } from "src/StatusBar";
 import { getExtensionFromMimeType } from "src/utils";
 import { liveHighlightExtension } from "src/transcribers/liveHighlight";
+import { isProviderEnabled } from "src/transcribers/registry";
 export default class Whisper extends Plugin {
 	settings: PluginSettings;
 	settingsManager: SettingsManager;
@@ -118,6 +119,16 @@ export default class Whisper extends Plugin {
 			this.statusBar.status === RecordingStatus.Paused
 		) {
 			new Notice("Already recording");
+			return;
+		}
+
+		if (
+			!isProviderEnabled(
+				this.settings,
+				this.settings.transcriptionProvider
+			)
+		) {
+			new Notice("Selected transcription provider is disabled");
 			return;
 		}
 

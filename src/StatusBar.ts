@@ -179,7 +179,8 @@ export class StatusBar {
 			return;
 		}
 		const next = getNextTranscriptionProvider(
-			this.plugin.settings.transcriptionProvider
+			this.plugin.settings.transcriptionProvider,
+			this.plugin.settings
 		);
 		this.plugin.settings.transcriptionProvider = next;
 		await this.plugin.settingsManager.saveSettings(this.plugin.settings);
