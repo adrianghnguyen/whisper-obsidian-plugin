@@ -148,11 +148,6 @@ async function main() {
         },
       };
     }
-    if (process.env.GEMINI_LIVE_SYSTEM_PROMPT) {
-      setup.systemInstruction = {
-        parts: [{ text: process.env.GEMINI_LIVE_SYSTEM_PROMPT }],
-      };
-    }
     ws.send(
       JSON.stringify({
         setup,

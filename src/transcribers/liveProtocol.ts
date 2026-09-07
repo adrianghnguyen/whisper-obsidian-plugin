@@ -24,7 +24,6 @@ export interface LiveSetupOptions {
 	languageCodes?: string[];
 	transcriptionMode?: GeminiTranscriptionMode;
 	customVocabulary?: string[];
-	systemPrompt?: string;
 }
 
 export function setupMessage(
@@ -42,6 +41,14 @@ export function setupMessage(
 		inputAudioTranscription.customVocabulary = options.customVocabulary;
 	}
 
+	/*
+	 * BidiGenerateContentSetup.systemInstruction (Live API WebSocket reference:
+	 * https://ai.google.dev/api/live#BidiGenerateContentSetup) is general session
+	 * behavior config: { parts: [{ text: "..." }] }. It steers model output/tone for
+	 * voice-agent sessions, not ASR. Transcription steering uses
+	 * inputAudioTranscription.customVocabulary (see transcribe docs). Intentionally
+	 * omitted here — do not expose via settings unless the use case is non-ASR Live.
+	 */
 	const setup: Record<string, unknown> = {
 		model: modelId,
 		generationConfig: {
@@ -58,13 +65,6 @@ export function setupMessage(
 			},
 		},
 	};
-
-	const prompt = options.systemPrompt?.trim();
-	if (prompt) {
-		setup.systemInstruction = {
-			parts: [{ text: prompt }],
-		};
-	}
 
 	return { setup };
 }

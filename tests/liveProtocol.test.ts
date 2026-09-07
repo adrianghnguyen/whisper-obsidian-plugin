@@ -56,16 +56,13 @@ describe("setupMessage", () => {
 		);
 	});
 
-	it("adds systemInstruction, mode, and customVocabulary when provided", () => {
+	it("adds mode and customVocabulary when provided", () => {
 		const msg = setupMessage("gemini-3.5-transcribe-live", {
 			languageCodes: ["en"],
 			transcriptionMode: "verbatim",
 			customVocabulary: ["ZyntriQix", "Digique Plus"],
-			systemPrompt: "Translate speech to French.",
 		});
-		expect((msg.setup as any).systemInstruction).toEqual({
-			parts: [{ text: "Translate speech to French." }],
-		});
+		expect((msg.setup as any).systemInstruction).toBeUndefined();
 		expect((msg.setup as any).inputAudioTranscription).toEqual({
 			mode: "verbatim",
 			languageCodes: ["en"],

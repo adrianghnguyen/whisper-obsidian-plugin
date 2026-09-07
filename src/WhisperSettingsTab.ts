@@ -138,7 +138,6 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createGeminiLiveTranscriptionModeSetting();
 			this.createGeminiLiveLanguageCodesSetting();
 			this.createGeminiLiveCustomVocabularySetting();
-			this.createGeminiLiveSystemInstructionSetting();
 			new Setting(containerEl)
 				.setName("Gemini Live — editor")
 				.setHeading();
@@ -395,19 +394,6 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						this.display();
 					});
 			});
-	}
-
-	private createGeminiLiveSystemInstructionSetting(): void {
-		this.createDebouncedTextAreaSetting(
-			"System instruction",
-			"Optional Live API systemInstruction: translation, formatting rules, and other directives for the streaming session.",
-			"Translate speech to French.",
-			this.plugin.settings.geminiLiveSystemPrompt,
-			6,
-			(value) => {
-				this.plugin.settings.geminiLiveSystemPrompt = value;
-			}
-		);
 	}
 
 	private createGeminiLiveTranscriptionModeSetting(): void {

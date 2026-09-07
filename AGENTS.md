@@ -2,6 +2,10 @@
 
 Fork of [nikdanilov/whisper-obsidian-plugin](https://github.com/nikdanilov/whisper-obsidian-plugin). Day-to-day work targets `origin` (`adrianghnguyen/whisper-obsidian-plugin`). Plugin id stays `whisper`.
 
+## Code style
+
+Multi-line comments: use `/* ... */` block comments, not stacked `//` lines. Single-line `//` is fine for one-liners.
+
 ## Deploy
 
 Staging first: copy `main.js`, `manifest.json`, and `styles.css` to `C:\plugin-sandbox-Obsidian\.obsidian\plugins\whisper\`, then `obsidian plugin:reload id=whisper vault=plugin-sandbox-Obsidian`. Promote to `C:\Obsidian\.obsidian\plugins\whisper\` only when asked. Community Update overwrites the fork build.

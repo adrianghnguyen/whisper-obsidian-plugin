@@ -61,7 +61,6 @@ export interface WhisperSettings {
 	geminiLiveTranscriptionMode: GeminiTranscriptionMode;
 	geminiLiveLanguageCodes: string;
 	geminiLiveCustomVocabulary: string;
-	geminiLiveSystemPrompt: string;
 	geminiLivePauseDelay: number;
 	language: string;
 	prompt: string;
@@ -123,7 +122,6 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	geminiLiveTranscriptionMode: "smart",
 	geminiLiveLanguageCodes: "",
 	geminiLiveCustomVocabulary: "",
-	geminiLiveSystemPrompt: "",
 	geminiLivePauseDelay: 750,
 	language: "",
 	prompt: "",
@@ -328,6 +326,7 @@ export class SettingsManager {
 		let migrated = false;
 		const legacy = settings as PluginSettings & {
 			geminiSystemPrompt?: string;
+			geminiLiveSystemPrompt?: string;
 		};
 
 		if (settings.language) {
@@ -348,6 +347,11 @@ export class SettingsManager {
 
 		if (legacy.geminiSystemPrompt !== undefined) {
 			delete legacy.geminiSystemPrompt;
+			migrated = true;
+		}
+
+		if (legacy.geminiLiveSystemPrompt !== undefined) {
+			delete legacy.geminiLiveSystemPrompt;
 			migrated = true;
 		}
 
