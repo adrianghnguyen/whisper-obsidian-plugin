@@ -24,14 +24,22 @@ import {
 } from "./transcribers/liveHighlight";
 
 export class WhisperSettingsTab extends PluginSettingTab {
+	private static readonly SAVE_DEBOUNCE_MS = 800;
+
 	private plugin: Whisper;
 	private settingsManager: SettingsManager;
 	private rebuilding = false;
+	private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(app: App, plugin: Whisper) {
 		super(app, plugin);
 		this.plugin = plugin;
 		this.settingsManager = plugin.settingsManager;
+	}
+
+	hide(): void {
+		this.flushDebouncedSave();
+		super.hide();
 	}
 
 	display(): void {
@@ -158,6 +166,59 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 	private async save(): Promise<void> {
 		await this.settingsManager.saveSettings(this.plugin.settings);
+	}
+
+	private scheduleDebouncedSave(): void {
+		if (this.saveDebounceTimer !== null) {
+			clearTimeout(this.saveDebounceTimer);
+		}
+		this.saveDebounceTimer = setTimeout(() => {
+			this.saveDebounceTimer = null;
+			void this.save();
+		}, WhisperSettingsTab.SAVE_DEBOUNCE_MS);
+	}
+
+	private flushDebouncedSave(): void {
+		if (this.saveDebounceTimer === null) {
+			return;
+		}
+		clearTimeout(this.saveDebounceTimer);
+		this.saveDebounceTimer = null;
+		void this.save();
+	}
+
+	/**
+	 * Textarea settings: update in-memory values immediately, persist to disk
+	 * after idle or on blur/tab close. Gemini Live API config (system
+	 * instruction, custom vocabulary, etc.) is not pushed to an active Live
+	 * WebSocket — a new recording or failover reconnect reads the latest
+	 * in-memory settings.
+	 */
+	private createDebouncedTextAreaSetting(
+		name: string,
+		desc: string,
+		placeholder: string,
+		value: string,
+		rows: number,
+		apply: (value: string) => void
+	): void {
+		new Setting(this.containerEl)
+			.setName(name)
+			.setDesc(desc)
+			.addTextArea((text) => {
+				text
+					.setPlaceholder(placeholder)
+					.setValue(value)
+					.onChange((next) => {
+						apply(next);
+						this.scheduleDebouncedSave();
+					});
+				text.inputEl.rows = rows;
+				text.inputEl.cols = 50;
+				text.inputEl.addEventListener("blur", () => {
+					this.flushDebouncedSave();
+				});
+			});
 	}
 
 	private createTextSetting(
@@ -337,22 +398,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createGeminiLiveSystemInstructionSetting(): void {
-		new Setting(this.containerEl)
-			.setName("System instruction")
-			.setDesc(
-				"Optional Live API systemInstruction: translation, formatting rules, and other directives for the streaming session."
-			)
-			.addTextArea((text) => {
-				text
-					.setPlaceholder("Translate speech to French.")
-					.setValue(this.plugin.settings.geminiLiveSystemPrompt)
-					.onChange(async (value) => {
-						this.plugin.settings.geminiLiveSystemPrompt = value;
-						await this.save();
-					});
-				text.inputEl.rows = 6;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"System instruction",
+			"Optional Live API systemInstruction: translation, formatting rules, and other directives for the streaming session.",
+			"Translate speech to French.",
+			this.plugin.settings.geminiLiveSystemPrompt,
+			6,
+			(value) => {
+				this.plugin.settings.geminiLiveSystemPrompt = value;
+			}
+		);
 	}
 
 	private createGeminiLiveTranscriptionModeSetting(): void {
@@ -381,22 +436,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createGeminiLiveCustomVocabularySetting(): void {
-		new Setting(this.containerEl)
-			.setName("Custom vocabulary")
-			.setDesc(
-				"Terms sent as inputAudioTranscription.customVocabulary (one per line or comma-separated, up to 1000)."
-			)
-			.addTextArea((text) => {
-				text
-					.setPlaceholder("Gemini\nKubernetes\nBigQuery")
-					.setValue(this.plugin.settings.geminiLiveCustomVocabulary)
-					.onChange(async (value) => {
-						this.plugin.settings.geminiLiveCustomVocabulary = value;
-						await this.save();
-					});
-				text.inputEl.rows = 4;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"Custom vocabulary",
+			"Terms sent as inputAudioTranscription.customVocabulary (one per line or comma-separated, up to 1000).",
+			"Gemini\nKubernetes\nBigQuery",
+			this.plugin.settings.geminiLiveCustomVocabulary,
+			4,
+			(value) => {
+				this.plugin.settings.geminiLiveCustomVocabulary = value;
+			}
+		);
 	}
 
 	private createLiveInterimHighlightSettings(): void {
@@ -527,22 +576,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createGeminiCustomVocabularySetting(): void {
-		new Setting(this.containerEl)
-			.setName("Custom vocabulary")
-			.setDesc(
-				"Terms sent as transcription_config.custom_vocabulary (one per line or comma-separated, up to 1000)."
-			)
-			.addTextArea((text) => {
-				text
-					.setPlaceholder("ZyntriQix, Digique Plus, gemini-3.5-transcribe")
-					.setValue(this.plugin.settings.geminiCustomVocabulary)
-					.onChange(async (value) => {
-						this.plugin.settings.geminiCustomVocabulary = value;
-						await this.save();
-					});
-				text.inputEl.rows = 4;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"Custom vocabulary",
+			"Terms sent as transcription_config.custom_vocabulary (one per line or comma-separated, up to 1000).",
+			"ZyntriQix, Digique Plus, gemini-3.5-transcribe",
+			this.plugin.settings.geminiCustomVocabulary,
+			4,
+			(value) => {
+				this.plugin.settings.geminiCustomVocabulary = value;
+			}
+		);
 	}
 
 	private createGeminiDiarizationSetting(): void {
@@ -816,23 +859,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createNoteTemplateSetting(): void {
-		new Setting(this.containerEl)
-			.setName("Note template")
-			.setDesc(
-				"Template for note content. Variables: {{transcription}}, {{audioFile}}, {{date}}, {{time}}, {{datetime}}, {{title}}. Use ![[{{audioFile}}]] to embed or [[{{audioFile}}]] to link."
-			)
-			.addTextArea((text) => {
-				text.setPlaceholder("![[{{audioFile}}]]\n{{transcription}}")
-					.setValue(this.plugin.settings.noteTemplate)
-					.onChange(async (value) => {
-						this.plugin.settings.noteTemplate = value;
-						await this.settingsManager.saveSettings(
-							this.plugin.settings
-						);
-					});
-				text.inputEl.rows = 4;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"Note template",
+			"Template for note content. Variables: {{transcription}}, {{audioFile}}, {{date}}, {{time}}, {{datetime}}, {{title}}. Use ![[{{audioFile}}]] to embed or [[{{audioFile}}]] to link.",
+			"![[{{audioFile}}]]\n{{transcription}}",
+			this.plugin.settings.noteTemplate,
+			4,
+			(value) => {
+				this.plugin.settings.noteTemplate = value;
+			}
+		);
 	}
 
 	private createSendCursorContextSetting(): void {
@@ -952,21 +988,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	}
 
 	private createPostProcessingPromptSetting(): void {
-		new Setting(this.containerEl)
-			.setName("Post-processing prompt")
-			.setDesc(
-				"Instructions for the LLM on how to clean up the transcription"
-			)
-			.addTextArea((text) => {
-				text.setPlaceholder("You are a transcription editor...")
-					.setValue(this.plugin.settings.postProcessingPrompt)
-					.onChange(async (value) => {
-						this.plugin.settings.postProcessingPrompt = value;
-						await this.save();
-					});
-				text.inputEl.rows = 4;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"Post-processing prompt",
+			"Instructions for the LLM on how to clean up the transcription",
+			"You are a transcription editor...",
+			this.plugin.settings.postProcessingPrompt,
+			4,
+			(value) => {
+				this.plugin.settings.postProcessingPrompt = value;
+			}
+		);
 	}
 
 	private createAutoGenerateTitleSetting(): void {
@@ -987,19 +1018,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private createTitleGenerationPromptSetting(): void {
 		if (!this.plugin.settings.autoGenerateTitle) return;
 
-		new Setting(this.containerEl)
-			.setName("Title generation prompt")
-			.setDesc("Instructions for the LLM on how to generate the title")
-			.addTextArea((text) => {
-				text.setPlaceholder("Generate a short title...")
-					.setValue(this.plugin.settings.titleGenerationPrompt)
-					.onChange(async (value) => {
-						this.plugin.settings.titleGenerationPrompt = value;
-						await this.save();
-					});
-				text.inputEl.rows = 2;
-				text.inputEl.cols = 50;
-			});
+		this.createDebouncedTextAreaSetting(
+			"Title generation prompt",
+			"Instructions for the LLM on how to generate the title",
+			"Generate a short title...",
+			this.plugin.settings.titleGenerationPrompt,
+			2,
+			(value) => {
+				this.plugin.settings.titleGenerationPrompt = value;
+			}
+		);
 	}
 
 	private createKeepOriginalTranscriptionSetting(): void {

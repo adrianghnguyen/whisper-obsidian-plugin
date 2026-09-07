@@ -200,6 +200,9 @@ export class GeminiLiveTranscriber {
 			}, SETUP_TIMEOUT_MS);
 
 			this.socket.onopen = () => {
+				// Setup (systemInstruction, customVocabulary, model, …) is sent
+				// once per WebSocket open. Editing settings during an active
+				// session does not hot-reload the connection — by design.
 				this.socket?.send(
 					JSON.stringify(
 						setupMessage(this.plugin.settings.geminiLiveModel, {
