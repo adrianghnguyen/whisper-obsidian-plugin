@@ -17,7 +17,7 @@ export enum RecordingStatus {
 	Processing = "processing",
 }
 
-const HOVER_OPEN_DELAY_MS = 250;
+const HOVER_OPEN_DELAY_MS = 400;
 const HOVER_CLOSE_DELAY_MS = 150;
 
 export class StatusBar {
@@ -271,7 +271,7 @@ export class StatusBar {
 		let color: string | null = "green";
 		switch (this.status) {
 			case RecordingStatus.Recording:
-				text = `Recording · ${core}`;
+				text = core;
 				color = null; // CSS owns soft red + pulse
 				break;
 			case RecordingStatus.Paused:
