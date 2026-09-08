@@ -155,6 +155,10 @@ export class StatusBar {
 		}
 	}
 
+	getDeviceLabel(): string {
+		return this.deviceLabel || "Default";
+	}
+
 	async refreshDeviceLabel(): Promise<void> {
 		const devices = await listInputDevices();
 		const currentId = this.plugin.settings.audioDeviceId || "default";

@@ -1,25 +1,86 @@
+/* Dock recording controls as a compact bottom sheet on all platforms. */
+.recording-controls.modal-container {
+	align-items: flex-end;
+	padding: 0;
+	justify-content: flex-end;
+}
+
+.recording-controls .modal {
+	width: 100%;
+	max-width: 100%;
+	margin: 0;
+	border-radius: var(--radius-l) var(--radius-l) 0 0;
+	padding: 12px 14px 16px;
+}
+
 .recording-controls .modal-content {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 	justify-content: center;
 	flex-direction: column;
-	gap: 16px;
+	gap: 10px;
+	padding: 0;
 }
+
+.recording-controls .timer {
+	text-align: center;
+	font-size: var(--font-ui-medium);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.2;
+}
+
+.recording-controls .recording-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+}
+
+.recording-controls .meta-component {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	justify-content: flex-start;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+	cursor: pointer;
+	font-size: var(--font-ui-small);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.recording-controls .meta-component:hover {
+	background-color: var(--background-modifier-hover);
+	filter: brightness(0.96);
+}
+
+.recording-controls .meta-component svg {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
 .recording-controls .button-group {
 	display: flex;
 	justify-content: center;
-	gap: 8px;
+	flex-wrap: wrap;
+	gap: 6px;
 }
+
 .recording-controls .button-component {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 6px 12px;
+	padding: 5px 10px;
 	border-radius: 6px;
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 	cursor: pointer;
-	font-size: var(--font-ui-small);
+	font-size: var(--font-ui-smaller);
 }
 
 .recording-controls .button-component:hover {

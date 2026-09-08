@@ -1,6 +1,7 @@
 import Whisper from "main";
 import { ButtonComponent, Modal } from "obsidian";
 import { RecordingStatus } from "./StatusBar";
+import { getModuleById } from "./transcribers/registry";
 
 export class Controls extends Modal {
 	private plugin: Whisper;
@@ -9,6 +10,8 @@ export class Controls extends Modal {
 	private stopButton: ButtonComponent;
 	private cancelButton: ButtonComponent;
 	private timerDisplay: HTMLElement;
+	private providerButton: ButtonComponent;
+	private microphoneButton: ButtonComponent;
 	private statusListener: () => void;
 
 	constructor(plugin: Whisper) {
@@ -22,6 +25,30 @@ export class Controls extends Modal {
 		this.plugin.timer.setOnUpdate(() => {
 			this.updateTimerDisplay();
 		});
+
+		const metaRowEl = this.contentEl.createEl("div", {
+			cls: "recording-meta",
+		});
+
+		this.providerButton = new ButtonComponent(metaRowEl);
+		this.providerButton
+			.setIcon("cpu")
+			.onClick(async () => {
+				await this.plugin.statusBar.cycleProvider();
+				this.updateMetaDisplay();
+			})
+			.buttonEl.addClass("meta-component");
+
+		this.microphoneButton = new ButtonComponent(metaRowEl);
+		this.microphoneButton
+			.setIcon("mic")
+			.onClick(async () => {
+				await this.plugin.statusBar.cycleDevice();
+				this.updateMetaDisplay();
+			})
+			.buttonEl.addClass("meta-component");
+
+		this.updateMetaDisplay();
 
 		const buttonGroupEl = this.contentEl.createEl("div", {
 			cls: "button-group",
@@ -70,7 +97,11 @@ export class Controls extends Modal {
 	onOpen() {
 		this.resetGUI();
 		this.updateTimerDisplay();
+		this.updateMetaDisplay();
 		this.plugin.statusBar.onChange(this.statusListener);
+		void this.plugin.statusBar.refreshDeviceLabel().then(() => {
+			this.updateMetaDisplay();
+		});
 	}
 
 	onClose() {
@@ -79,6 +110,37 @@ export class Controls extends Modal {
 
 	updateTimerDisplay() {
 		this.timerDisplay.textContent = this.plugin.timer.getFormattedTime();
+	}
+
+	updateMetaDisplay() {
+		const module = getModuleById(
+			this.plugin.settings.transcriptionProvider
+		);
+		const micLabel = this.plugin.statusBar.getDeviceLabel();
+
+		this.providerButton.buttonEl.empty();
+		this.providerButton.setIcon("cpu");
+		this.providerButton.buttonEl.appendText(` ${module.label}`);
+		this.providerButton.buttonEl.setAttribute(
+			"aria-label",
+			`Provider: ${module.label}. Tap to cycle.`
+		);
+		this.providerButton.buttonEl.setAttribute(
+			"title",
+			`Provider: ${module.label}. Tap to cycle.`
+		);
+
+		this.microphoneButton.buttonEl.empty();
+		this.microphoneButton.setIcon("mic");
+		this.microphoneButton.buttonEl.appendText(` ${micLabel}`);
+		this.microphoneButton.buttonEl.setAttribute(
+			"aria-label",
+			`Microphone: ${micLabel}. Tap to cycle.`
+		);
+		this.microphoneButton.buttonEl.setAttribute(
+			"title",
+			`Microphone: ${micLabel}. Tap to cycle.`
+		);
 	}
 
 	resetGUI() {
