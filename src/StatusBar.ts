@@ -271,25 +271,22 @@ export class StatusBar {
 			micFull
 		);
 		const isRecording = this.status === RecordingStatus.Recording;
-		let text = core;
-		let color: string | null = "green";
+		/* Status is color/pulse only; label stays provider · mic. */
+		const text = core;
+		let color: string | null = "gray";
 		switch (this.status) {
 			case RecordingStatus.Recording:
-				text = core;
 				color = null; // CSS owns soft red + pulse
 				break;
 			case RecordingStatus.Paused:
-				text = `Paused · ${core}`;
 				color = "yellow";
 				break;
 			case RecordingStatus.Processing:
-				text = `Processing · ${core}`;
-				color = "gray";
+				color = "green";
 				break;
 			case RecordingStatus.Idle:
 			default:
-				text = core;
-				color = "green";
+				color = "gray";
 				break;
 		}
 		const tooltip = `${module.label} — ${micFull}\nClick to cycle provider · Hover for microphone`;

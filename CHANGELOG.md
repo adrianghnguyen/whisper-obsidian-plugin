@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+
+* **Status bar state is color-only.** Idle is neutral gray, processing is green, paused stays yellow, and recording keeps the soft red pulse; drop the Paused/Processing text prefixes so the label stays `provider · mic`.
+
 ## [1.12.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.11.0...1.12.0) (2026-09-07)
 
 ### Features
