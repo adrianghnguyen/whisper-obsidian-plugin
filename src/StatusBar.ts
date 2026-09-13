@@ -134,7 +134,7 @@ export class StatusBar {
 		}
 		this.hoverOpenTimer = setTimeout(() => {
 			this.hoverOpenTimer = null;
-			void this.showMicrophoneMenu();
+			void this.openMicrophoneMenu();
 		}, HOVER_OPEN_DELAY_MS);
 	}
 
@@ -211,7 +211,7 @@ export class StatusBar {
 		new Notice(next.label);
 	}
 
-	private async showMicrophoneMenu(): Promise<void> {
+	async openMicrophoneMenu(): Promise<void> {
 		if (!this.statusBarItem) {
 			return;
 		}
