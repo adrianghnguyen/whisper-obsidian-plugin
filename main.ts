@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { App, Notice, Plugin, TFile } from "obsidian";
 import { Timer } from "src/Timer";
 import { Controls } from "src/Controls";
 import { AudioHandler } from "src/AudioHandler";
@@ -333,8 +333,16 @@ export default class Whisper extends Plugin {
 			name: "Open Whisper settings",
 			icon: "settings",
 			callback: () => {
-				this.app.setting.open();
-				this.app.setting.openTabById(this.manifest.id);
+				const setting = (
+					this.app as App & {
+						setting: {
+							open(): void;
+							openTabById(id: string): void;
+						};
+					}
+				).setting;
+				setting.open();
+				setting.openTabById(this.manifest.id);
 			},
 		});
 	}
