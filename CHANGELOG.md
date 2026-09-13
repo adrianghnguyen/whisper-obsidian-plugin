@@ -2,9 +2,17 @@
 
 ## [Unreleased]
 
+## [1.13.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.12.0...1.13.0) (2026-09-13)
+
+### Features
+
+* **Mobile recording controls** bottom sheet: cycle transcription provider and microphone from one surface.
+* **Command palette icons** for recording commands; registers missing recording-control commands with Obsidian icons.
+
 ### Bug Fixes
 
 * **Status bar state is color-only.** Idle is neutral gray, processing is green, paused stays yellow, and recording keeps the soft red pulse; drop the Paused/Processing text prefixes so the label stays `provider · mic`.
+* **Softer status bar recording label and mic hover delay** so the live session indicator is easier to read at a glance.
 
 ## [1.12.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.11.0...1.12.0) (2026-09-07)
 
