@@ -22,7 +22,7 @@ export default class Whisper extends Plugin {
 		this.settingsManager = new SettingsManager(this);
 		this.settings = await this.settingsManager.loadSettings();
 
-		this.addRibbonIcon("mic", "Open recording controls", () => {
+		this.addRibbonIcon("audio-lines", "Open recording controls", () => {
 			this.openControls();
 		});
 
@@ -297,7 +297,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "open-recording-controls",
 			name: "Open recording controls",
-			icon: "mic-audio-lines",
+			icon: "audio-lines",
 			callback: () => this.openControls(),
 		});
 
