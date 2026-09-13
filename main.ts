@@ -297,7 +297,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "open-recording-controls",
 			name: "Open recording controls",
-			icon: "audio-lines",
+			icon: "mic-audio-lines",
 			callback: () => this.openControls(),
 		});
 
