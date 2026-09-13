@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { App, Notice, Plugin, TFile } from "obsidian";
 import { Timer } from "src/Timer";
 import { Controls } from "src/Controls";
 import { AudioHandler } from "src/AudioHandler";
@@ -22,7 +22,7 @@ export default class Whisper extends Plugin {
 		this.settingsManager = new SettingsManager(this);
 		this.settings = await this.settingsManager.loadSettings();
 
-		this.addRibbonIcon("mic", "Open recording controls", () => {
+		this.addRibbonIcon("audio-lines", "Open recording controls", () => {
 			this.openControls();
 		});
 
@@ -243,6 +243,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "upload-audio-file",
 			name: "Upload audio file",
+			icon: "upload",
 			callback: () => {
 				const fileInput = document.createElement("input");
 				fileInput.type = "file";
@@ -266,12 +267,37 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "pause-resume-recording",
 			name: "Pause/resume recording",
-			callback: () => this.pauseRecording(),
+			icon: "pause",
+			checkCallback: (checking) => {
+				const active =
+					this.statusBar.status === RecordingStatus.Recording ||
+					this.statusBar.status === RecordingStatus.Paused;
+				if (checking) {
+					return active;
+				}
+				void this.pauseRecording();
+			},
+		});
+
+		this.addCommand({
+			id: "cancel-recording",
+			name: "Cancel recording",
+			icon: "x",
+			checkCallback: (checking) => {
+				const active =
+					this.statusBar.status === RecordingStatus.Recording ||
+					this.statusBar.status === RecordingStatus.Paused;
+				if (checking) {
+					return active;
+				}
+				void this.cancelRecording();
+			},
 		});
 
 		this.addCommand({
 			id: "open-recording-controls",
 			name: "Open recording controls",
+			icon: "audio-lines",
 			callback: () => this.openControls(),
 		});
 
@@ -290,6 +316,33 @@ export default class Whisper extends Plugin {
 			icon: "repeat",
 			callback: () => {
 				void this.statusBar.cycleProvider();
+			},
+		});
+
+		this.addCommand({
+			id: "select-microphone",
+			name: "Select microphone",
+			icon: "headset",
+			callback: () => {
+				void this.statusBar.openMicrophoneMenu();
+			},
+		});
+
+		this.addCommand({
+			id: "open-settings",
+			name: "Open Whisper settings",
+			icon: "settings",
+			callback: () => {
+				const setting = (
+					this.app as App & {
+						setting: {
+							open(): void;
+							openTabById(id: string): void;
+						};
+					}
+				).setting;
+				setting.open();
+				setting.openTabById(this.manifest.id);
 			},
 		});
 	}
