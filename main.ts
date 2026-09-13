@@ -297,7 +297,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "open-recording-controls",
 			name: "Open recording controls",
-			icon: "layout-panel-top",
+			icon: "audio-lines",
 			callback: () => this.openControls(),
 		});
 
@@ -322,7 +322,7 @@ export default class Whisper extends Plugin {
 		this.addCommand({
 			id: "select-microphone",
 			name: "Select microphone",
-			icon: "audio-lines",
+			icon: "headset",
 			callback: () => {
 				void this.statusBar.openMicrophoneMenu();
 			},
