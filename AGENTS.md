@@ -44,6 +44,8 @@ API keys live in Obsidian secret storage (`app.secretStorage`), never in `data.j
 | `postProcessingApiKey` | `post-processing-api-key` |
 | Whisper transcription key (OpenAI-compatible) | via `whisperApiKeySecretId` setting; id is stored per-user, legacy migration maps old id `api-key` |
 
+Cursor Cloud env → these ids: `.cloud-e2e/secret-bindings.json`. Gemini Live uses the hardcoded `gemini-api-key` (no pointer). The OpenAI Whisper **URL** uses `whisperApiKeySecretId` — if that setting is empty, `settings.apiKey` stays empty even when `openai-api-key` is in the keychain.
+
 Probing from the CLI (length only — never print the value):
 
 ```powershell
