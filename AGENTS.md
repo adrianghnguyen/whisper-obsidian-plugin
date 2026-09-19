@@ -2,6 +2,18 @@
 
 Fork of [nikdanilov/whisper-obsidian-plugin](https://github.com/nikdanilov/whisper-obsidian-plugin). Day-to-day work targets `origin` (`adrianghnguyen/whisper-obsidian-plugin`). Plugin id stays `whisper`.
 
+## Cursor Cloud environment
+
+Setup is owned by `obsidian-plugin-development`. This repo ships the shared pointer plus its own secret-id map. **Do not copy script bodies here.**
+
+- Pointer: `.cursor/environment.json` (same `install` / `start` on all four `main`s)
+- Scripts (plugin-development only): `scripts/cloud-e2e/env-install.sh`, `env-start.sh`, `install-acp-agents.sh`, `paths.env`
+- Walkthrough: `scripts/cloud-e2e/README.md`, `GETTING-STARTED.md`
+- Secret **ids**: this repo’s `.cloud-e2e/secret-bindings.json`; fallbacks `obsidian-plugin-development/scripts/cloud-e2e/bindings/*.json` via `load-bindings.mjs`
+- Identity gate: `env-start.sh` CDP eval + `paths.env` (no separate id file)
+
+Project doc: `/cursor/stores/bc-a8a2e9ee-3f2b-4d31-ae8c-85b3734c071e/docs/cursor-environment-docs.md`
+
 ## Code style
 
 Multi-line comments: use `/* ... */` block comments, not stacked `//` lines. Single-line `//` is fine for one-liners.
@@ -44,7 +56,7 @@ API keys live in Obsidian secret storage (`app.secretStorage`), never in `data.j
 | `postProcessingApiKey` | `post-processing-api-key` |
 | Whisper transcription key (OpenAI-compatible) | via `whisperApiKeySecretId` setting; id is stored per-user, legacy migration maps old id `api-key` |
 
-Cursor Cloud env → these ids: `.cloud-e2e/secret-bindings.json`. Gemini Live uses the hardcoded `gemini-api-key` (no pointer). The OpenAI Whisper **URL** uses `whisperApiKeySecretId` — if that setting is empty, `settings.apiKey` stays empty even when `openai-api-key` is in the keychain.
+Secret **ids** for Keychain inject: see [Cursor Cloud environment](#cursor-cloud-environment). Gemini Live uses the hardcoded `gemini-api-key` (no pointer). The OpenAI Whisper **URL** uses `whisperApiKeySecretId` — if that setting is empty, `settings.apiKey` stays empty even when `openai-api-key` is in the keychain.
 
 Probing from the CLI (length only — never print the value):
 
