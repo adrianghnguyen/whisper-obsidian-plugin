@@ -68,6 +68,7 @@ export const GEMINI_LIVE_MODULE: TranscriptionModuleDescriptor = {
 	statusBarLabel: "Gemini Live",
 	isLive: true,
 	order: 2,
+	supportsPauseTolerance: true,
 };
 
 /**

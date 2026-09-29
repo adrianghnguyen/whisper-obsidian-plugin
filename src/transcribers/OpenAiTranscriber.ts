@@ -13,6 +13,7 @@ export const OPENAI_MODULE: TranscriptionModuleDescriptor = {
 	statusBarLabel: "Whisper",
 	isLive: false,
 	order: 0,
+	supportsPauseTolerance: false,
 };
 
 export class OpenAiTranscriber implements Transcriber {

@@ -15,6 +15,7 @@ export const GEMINI_MODULE: TranscriptionModuleDescriptor = {
 	statusBarLabel: "Gemini",
 	isLive: false,
 	order: 1,
+	supportsPauseTolerance: false,
 };
 
 export interface GeminiInteractionPayload {

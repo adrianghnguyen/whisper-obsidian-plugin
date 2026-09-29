@@ -27,6 +27,10 @@ import {
 	LIVE_HIGHLIGHT_PRESETS,
 	normalizeHighlightColor,
 } from "./transcribers/liveHighlight";
+import {
+	DEFAULT_PAUSE_TOLERANCE_MS,
+	PAUSE_TOLERANCE_OPTIONS,
+} from "./transcribers/toleranceOptions";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private static readonly SAVE_DEBOUNCE_MS = 800;
@@ -437,19 +441,22 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				"How long to pause before in-progress speech is locked into the note. Lower values commit faster; higher values give you more time between words without locking. Subsequent speech always appends smoothly at the cursor."
 			)
 			.addDropdown((dropdown) => {
-				dropdown.addOption("500", "Fast (500 ms)");
-				dropdown.addOption("750", "Standard (750 ms)");
-				dropdown.addOption("1200", "Relaxed (1.2 s)");
-				dropdown.addOption("2000", "Long (2.0 s)");
+				for (const option of PAUSE_TOLERANCE_OPTIONS) {
+					dropdown.addOption(
+						String(option.ms),
+						option.fullLabel
+					);
+				}
 				dropdown
 					.setValue(
 						String(
-							this.plugin.settings.geminiLivePauseDelay || 750
+							this.plugin.settings.geminiLivePauseDelay ||
+								DEFAULT_PAUSE_TOLERANCE_MS
 						)
 					)
 					.onChange(async (value) => {
 						this.plugin.settings.geminiLivePauseDelay =
-							Number(value) || 750;
+							Number(value) || DEFAULT_PAUSE_TOLERANCE_MS;
 						await this.save();
 						this.display();
 					});

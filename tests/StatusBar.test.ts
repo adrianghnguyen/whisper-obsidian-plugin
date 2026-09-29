@@ -39,4 +39,30 @@ describe("RecordingStatus enum", () => {
 			)
 		).toBe("Whisper · My Very Long Mi...");
 	});
+
+	it("inserts the tolerance segment between provider and microphone", async () => {
+		const { StatusBar } = await import("../src/StatusBar");
+		const bar = Object.create(StatusBar.prototype) as InstanceType<
+			typeof StatusBar
+		>;
+		expect(
+			bar.combinedStatusLabel("Gemini Live", "Default", 34, "Standard")
+		).toBe("Gemini Live · Standard · Default");
+	});
+
+	it("truncates the microphone before dropping the tolerance segment", async () => {
+		const { StatusBar } = await import("../src/StatusBar");
+		const bar = Object.create(StatusBar.prototype) as InstanceType<
+			typeof StatusBar
+		>;
+		const label = bar.combinedStatusLabel(
+			"Gemini Live",
+			"My Very Long Microphone Name Here",
+			34,
+			"Standard"
+		);
+		expect(label).toContain("Gemini Live");
+		expect(label).toContain("Standard");
+		expect(label.endsWith("...")).toBe(true);
+	});
 });

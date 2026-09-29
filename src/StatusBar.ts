@@ -6,9 +6,15 @@ import {
 } from "./audioDevices";
 import { showMenuAboveAnchor } from "./menuPosition";
 import {
+	getEnabledModules,
 	getModuleById,
 	getNextTranscriptionProvider,
 } from "./transcribers/registry";
+import {
+	getNextToleranceMs,
+	getToleranceFullLabel,
+	getToleranceShortLabel,
+} from "./transcribers/toleranceOptions";
 
 export enum RecordingStatus {
 	Idle = "idle",
@@ -19,6 +25,10 @@ export enum RecordingStatus {
 
 const HOVER_OPEN_DELAY_MS = 400;
 const HOVER_CLOSE_DELAY_MS = 150;
+/* Wider budget when the tolerance segment is present so provider + tolerance +
+ * microphone still fit without dropping a segment. */
+const COMBINED_LABEL_MAX = 28;
+const COMBINED_LABEL_MAX_WITH_TOLERANCE = 34;
 
 export class StatusBar {
 	plugin: Whisper;
@@ -27,23 +37,26 @@ export class StatusBar {
 	private listeners: Array<(status: RecordingStatus) => void> = [];
 	private deviceLabel = "Default";
 	private permissionRequested = false;
-	private hoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
-	private hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
+	private popoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
+	private popoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
 	private activeMicMenu: Menu | null = null;
+	private activeProviderMenu: Menu | null = null;
+	private micMenuAnchor: HTMLElement | null = null;
+	private providerMenuAnchor: HTMLElement | null = null;
 
 	constructor(plugin: Whisper) {
 		this.plugin = plugin;
 		this.statusBarItem = this.plugin.addStatusBarItem();
 		this.statusBarItem.addClass("whisper-status-bar");
 		this.statusBarItem.addEventListener("click", () => {
-			void this.cycleProvider();
+			void this.cyclePauseTolerance();
 		});
 		this.statusBarItem.addEventListener("mouseenter", () => {
-			this.scheduleMicrophoneMenu();
+			this.schedulePopoversOpen();
 		});
 		this.statusBarItem.addEventListener("mouseleave", () => {
-			this.cancelMicrophoneMenuOpen();
-			this.scheduleMicrophoneMenuClose();
+			this.cancelPopoversOpen();
+			this.schedulePopoversClose();
 		});
 		this.updateStatusBarItem();
 		void this.refreshDeviceLabel();
@@ -74,19 +87,38 @@ export class StatusBar {
 	combinedStatusLabel(
 		providerShort: string,
 		micLabel: string,
-		maxLen = 28
+		maxLen = COMBINED_LABEL_MAX,
+		toleranceShort?: string
 	): string {
 		const micShort = this.shortLabel(micLabel);
-		const combined = `${providerShort} · ${micShort}`;
+		const separator = " · ";
+		const segments = toleranceShort
+			? [providerShort, toleranceShort, micShort]
+			: [providerShort, micShort];
+		const combined = segments.join(separator);
 		if (combined.length <= maxLen) {
 			return combined;
 		}
-		const prefix = `${providerShort} · `;
-		const remaining = maxLen - prefix.length - 3;
+
+		/*
+		 * Truncate the trailing microphone segment so the provider (and the
+		 * optional tolerance) stay readable.
+		 */
+		const head = segments.slice(0, -1).join(separator);
+		const remaining = maxLen - head.length - separator.length - 3;
 		if (remaining <= 0) {
-			return `${providerShort.slice(0, maxLen - 3)}...`;
+			if (toleranceShort) {
+				return this.combinedStatusLabel(
+					providerShort,
+					micLabel,
+					maxLen
+				);
+			}
+			return `${providerShort.slice(0, Math.max(0, maxLen - 3))}...`;
 		}
-		return `${prefix}${micShort.slice(0, remaining)}...`;
+		return `${head}${separator}${segments[
+			segments.length - 1
+		].slice(0, remaining)}...`;
 	}
 
 	private isRecordingOrPaused(): boolean {
@@ -96,28 +128,52 @@ export class StatusBar {
 		);
 	}
 
-	private cancelMicrophoneMenuOpen(): void {
-		if (this.hoverOpenTimer) {
-			clearTimeout(this.hoverOpenTimer);
-			this.hoverOpenTimer = null;
+	private cancelPopoversOpen(): void {
+		if (this.popoverOpenTimer) {
+			clearTimeout(this.popoverOpenTimer);
+			this.popoverOpenTimer = null;
 		}
 	}
 
-	private scheduleMicrophoneMenuClose(): void {
-		if (this.hoverCloseTimer) {
-			clearTimeout(this.hoverCloseTimer);
+	private schedulePopoversOpen(): void {
+		this.cancelPopoversClose();
+		if (this.popoverOpenTimer || this.activeProviderMenu) {
+			return;
 		}
-		this.hoverCloseTimer = setTimeout(() => {
-			this.hoverCloseTimer = null;
-			this.hideMicrophoneMenu();
+		this.popoverOpenTimer = setTimeout(() => {
+			this.popoverOpenTimer = null;
+			void this.openPopovers();
+		}, HOVER_OPEN_DELAY_MS);
+	}
+
+	private schedulePopoversClose(): void {
+		if (this.popoverCloseTimer) {
+			clearTimeout(this.popoverCloseTimer);
+		}
+		this.popoverCloseTimer = setTimeout(() => {
+			this.popoverCloseTimer = null;
+			this.hidePopovers();
 		}, HOVER_CLOSE_DELAY_MS);
 	}
 
-	private cancelMicrophoneMenuClose(): void {
-		if (this.hoverCloseTimer) {
-			clearTimeout(this.hoverCloseTimer);
-			this.hoverCloseTimer = null;
+	private cancelPopoversClose(): void {
+		if (this.popoverCloseTimer) {
+			clearTimeout(this.popoverCloseTimer);
+			this.popoverCloseTimer = null;
 		}
+	}
+
+	/** Wire a rendered popover so hovering it keeps both popovers alive. */
+	private trackPopoverHover(menuEl: HTMLElement | null): void {
+		if (!menuEl) {
+			return;
+		}
+		menuEl.addEventListener("mouseenter", () => {
+			this.cancelPopoversClose();
+		});
+		menuEl.addEventListener("mouseleave", () => {
+			this.schedulePopoversClose();
+		});
 	}
 
 	private hideMicrophoneMenu(): void {
@@ -125,17 +181,25 @@ export class StatusBar {
 			this.activeMicMenu.hide();
 			this.activeMicMenu = null;
 		}
+		this.micMenuAnchor = null;
 	}
 
-	private scheduleMicrophoneMenu(): void {
-		this.cancelMicrophoneMenuClose();
-		if (this.hoverOpenTimer || this.activeMicMenu) {
-			return;
+	private hideProviderMenu(): void {
+		if (this.activeProviderMenu) {
+			this.activeProviderMenu.hide();
+			this.activeProviderMenu = null;
 		}
-		this.hoverOpenTimer = setTimeout(() => {
-			this.hoverOpenTimer = null;
-			void this.openMicrophoneMenu();
-		}, HOVER_OPEN_DELAY_MS);
+		this.providerMenuAnchor = null;
+	}
+
+	private hidePopovers(): void {
+		this.hideProviderMenu();
+		this.hideMicrophoneMenu();
+	}
+
+	private async openPopovers(): Promise<void> {
+		const micAnchor = await this.openMicrophoneMenu(this.statusBarItem);
+		await this.openProviderMenu(micAnchor ?? this.statusBarItem);
 	}
 
 	private async ensureMicrophonePermission(): Promise<void> {
@@ -192,6 +256,23 @@ export class StatusBar {
 		new Notice(getModuleById(next).label);
 	}
 
+	async cyclePauseTolerance(): Promise<void> {
+		if (this.isRecordingOrPaused()) {
+			return;
+		}
+		const module = getModuleById(this.plugin.settings.transcriptionProvider);
+		if (!module.supportsPauseTolerance) {
+			return;
+		}
+		const next = getNextToleranceMs(
+			this.plugin.settings.geminiLivePauseDelay
+		);
+		this.plugin.settings.geminiLivePauseDelay = next;
+		await this.plugin.settingsManager.saveSettings(this.plugin.settings);
+		this.updateStatusBarItem();
+		new Notice(getToleranceFullLabel(next));
+	}
+
 	async cycleDevice(): Promise<void> {
 		if (this.isRecordingOrPaused()) {
 			new Notice("Microphone changes on the next recording");
@@ -211,9 +292,12 @@ export class StatusBar {
 		new Notice(next.label);
 	}
 
-	async openMicrophoneMenu(): Promise<void> {
-		if (!this.statusBarItem) {
-			return;
+	async openMicrophoneMenu(
+		anchor?: HTMLElement | null
+	): Promise<HTMLElement | null> {
+		const target = anchor ?? this.statusBarItem;
+		if (!target || this.activeMicMenu) {
+			return null;
 		}
 		await this.ensureMicrophonePermission();
 		const devices = await listInputDevices();
@@ -223,6 +307,7 @@ export class StatusBar {
 		menu.onHide(() => {
 			if (this.activeMicMenu === menu) {
 				this.activeMicMenu = null;
+				this.micMenuAnchor = null;
 			}
 		});
 
@@ -248,16 +333,52 @@ export class StatusBar {
 			});
 		}
 
-		showMenuAboveAnchor(menu, this.statusBarItem);
-		const menuEl = document.body.querySelector(".menu") as HTMLElement | null;
-		if (menuEl) {
-			menuEl.addEventListener("mouseenter", () => {
-				this.cancelMicrophoneMenuClose();
-			});
-			menuEl.addEventListener("mouseleave", () => {
-				this.scheduleMicrophoneMenuClose();
+		this.micMenuAnchor = await showMenuAboveAnchor(menu, target);
+		this.trackPopoverHover(this.micMenuAnchor);
+		return this.micMenuAnchor;
+	}
+
+	async openProviderMenu(
+		anchor?: HTMLElement | null
+	): Promise<HTMLElement | null> {
+		const target = anchor ?? this.statusBarItem;
+		if (!target || this.activeProviderMenu) {
+			return null;
+		}
+		const current = this.plugin.settings.transcriptionProvider;
+		const menu = new Menu();
+		this.activeProviderMenu = menu;
+		menu.onHide(() => {
+			if (this.activeProviderMenu === menu) {
+				this.activeProviderMenu = null;
+				this.providerMenuAnchor = null;
+			}
+		});
+
+		for (const module of getEnabledModules(this.plugin.settings)) {
+			menu.addItem((item) => {
+				item.setTitle(module.label)
+					.setChecked(module.id === current)
+					.onClick(async () => {
+						if (this.isRecordingOrPaused()) {
+							new Notice(
+								"Provider changes on the next recording"
+							);
+							return;
+						}
+						this.plugin.settings.transcriptionProvider = module.id;
+						await this.plugin.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+						this.updateStatusBarItem();
+						new Notice(module.label);
+					});
 			});
 		}
+
+		this.providerMenuAnchor = await showMenuAboveAnchor(menu, target);
+		this.trackPopoverHover(this.providerMenuAnchor);
+		return this.providerMenuAnchor;
 	}
 
 	updateStatusBarItem() {
@@ -266,12 +387,20 @@ export class StatusBar {
 		}
 		const module = getModuleById(this.plugin.settings.transcriptionProvider);
 		const micFull = this.deviceLabel || "Default";
+		const supportsTolerance = module.supportsPauseTolerance;
+		const toleranceShort = supportsTolerance
+			? getToleranceShortLabel(this.plugin.settings.geminiLivePauseDelay)
+			: undefined;
 		const core = this.combinedStatusLabel(
 			module.statusBarLabel,
-			micFull
+			micFull,
+			supportsTolerance
+				? COMBINED_LABEL_MAX_WITH_TOLERANCE
+				: COMBINED_LABEL_MAX,
+			toleranceShort
 		);
 		const isRecording = this.status === RecordingStatus.Recording;
-		/* Status is color/pulse only; label stays provider · mic. */
+		/* Status is color/pulse only; label stays provider · [tolerance] · mic. */
 		const text = core;
 		let color: string | null = "gray";
 		switch (this.status) {
@@ -289,7 +418,15 @@ export class StatusBar {
 				color = "gray";
 				break;
 		}
-		const tooltip = `${module.label} — ${micFull}\nClick to cycle provider · Hover for microphone`;
+		const tooltipLines = supportsTolerance
+			? `${module.label} — Pause tolerance: ${getToleranceFullLabel(
+					this.plugin.settings.geminiLivePauseDelay
+			  )} — ${micFull}`
+			: `${module.label} — ${micFull}`;
+		const hint = supportsTolerance
+			? "Click to cycle pause tolerance · Hover for sources"
+			: "Hover for sources";
+		const tooltip = `${tooltipLines}\n${hint}`;
 		this.statusBarItem.empty();
 		this.statusBarItem.toggleClass(
 			"whisper-status-bar--recording",
@@ -307,9 +444,9 @@ export class StatusBar {
 	}
 
 	remove() {
-		this.cancelMicrophoneMenuOpen();
-		this.cancelMicrophoneMenuClose();
-		this.hideMicrophoneMenu();
+		this.cancelPopoversOpen();
+		this.cancelPopoversClose();
+		this.hidePopovers();
 		if (this.statusBarItem) {
 			this.statusBarItem.remove();
 		}

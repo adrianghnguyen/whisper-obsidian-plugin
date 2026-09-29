@@ -33,6 +33,12 @@ describe("transcriber registry", () => {
 		expect(getModuleById("unknown" as "openai").id).toBe("openai");
 	});
 
+	it("declares pause-tolerance support only for streaming providers", () => {
+		expect(GEMINI_LIVE_MODULE.supportsPauseTolerance).toBe(true);
+		expect(OPENAI_MODULE.supportsPauseTolerance).toBe(false);
+		expect(GEMINI_MODULE.supportsPauseTolerance).toBe(false);
+	});
+
 	it("builds provider options from module labels", () => {
 		expect(getTranscriptionProviderOptions()).toEqual({
 			openai: "OpenAI (Whisper)",
