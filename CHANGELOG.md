@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.14.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.13.0...1.14.0) (2026-09-28)
+
+### Features
+
+* **Status bar STT provider popout.** Hover the status bar to pick a transcription provider from a popout stacked above the microphone sources list; the choice persists without cycling blindly.
+* **Status bar click cycles pause tolerance** for providers that support it (Gemini Live) and is a silent no-op elsewhere. Tolerance options stay shared with Settings so the dropdown and cycle cannot drift.
+
 ## [1.13.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.12.0...1.13.0) (2026-09-13)
 
 ### Features
