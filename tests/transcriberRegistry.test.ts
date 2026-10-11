@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	TRANSCRIPTION_MODULES,
+	getBatchTranscriberKind,
 	getFirstEnabledProvider,
 	getModuleById,
 	getNextTranscriptionProvider,
@@ -10,6 +11,7 @@ import {
 import { OPENAI_MODULE } from "../src/transcribers/OpenAiTranscriber";
 import { GEMINI_MODULE } from "../src/transcribers/GeminiTranscriber";
 import { GEMINI_LIVE_MODULE } from "../src/transcribers/GeminiLiveTranscriber";
+import { WHISTLE_MODULE } from "../src/transcribers/WhistleTranscriber";
 
 describe("transcriber registry", () => {
 	it("lists modules in order", () => {
@@ -17,19 +19,22 @@ describe("transcriber registry", () => {
 			"openai",
 			"gemini",
 			"gemini-live",
+			"whistle",
 		]);
 	});
 
 	it("cycles providers in order and wraps", () => {
 		expect(getNextTranscriptionProvider("openai")).toBe("gemini");
 		expect(getNextTranscriptionProvider("gemini")).toBe("gemini-live");
-		expect(getNextTranscriptionProvider("gemini-live")).toBe("openai");
+		expect(getNextTranscriptionProvider("gemini-live")).toBe("whistle");
+		expect(getNextTranscriptionProvider("whistle")).toBe("openai");
 	});
 
 	it("looks up modules by id", () => {
 		expect(getModuleById("openai")).toBe(OPENAI_MODULE);
 		expect(getModuleById("gemini")).toBe(GEMINI_MODULE);
 		expect(getModuleById("gemini-live")).toBe(GEMINI_LIVE_MODULE);
+		expect(getModuleById("whistle")).toBe(WHISTLE_MODULE);
 		expect(getModuleById("unknown" as "openai").id).toBe("openai");
 	});
 
@@ -37,6 +42,7 @@ describe("transcriber registry", () => {
 		expect(GEMINI_LIVE_MODULE.supportsPauseTolerance).toBe(true);
 		expect(OPENAI_MODULE.supportsPauseTolerance).toBe(false);
 		expect(GEMINI_MODULE.supportsPauseTolerance).toBe(false);
+		expect(WHISTLE_MODULE.supportsPauseTolerance).toBe(false);
 	});
 
 	it("builds provider options from module labels", () => {
@@ -44,7 +50,15 @@ describe("transcriber registry", () => {
 			openai: "OpenAI (Whisper)",
 			gemini: "Gemini API",
 			"gemini-live": "Gemini Live (Streaming)",
+			whistle: "Whistle (On-device)",
 		});
+	});
+
+	it("routes batch recordings to the matching transcriber", () => {
+		expect(getBatchTranscriberKind("openai")).toBe("openai");
+		expect(getBatchTranscriberKind("gemini")).toBe("gemini");
+		expect(getBatchTranscriberKind("whistle")).toBe("whistle");
+		expect(getBatchTranscriberKind("gemini-live")).toBeNull();
 	});
 
 	it("treats missing disabled list as all enabled", () => {
@@ -70,6 +84,7 @@ describe("transcriber registry", () => {
 		).toEqual({
 			openai: "OpenAI (Whisper)",
 			gemini: "Gemini API",
+			whistle: "Whistle (On-device)",
 		});
 	});
 
@@ -81,6 +96,9 @@ describe("transcriber registry", () => {
 			"gemini-live"
 		);
 		expect(getNextTranscriptionProvider("gemini-live", settings)).toBe(
+			"whistle"
+		);
+		expect(getNextTranscriptionProvider("whistle", settings)).toBe(
 			"openai"
 		);
 	});
