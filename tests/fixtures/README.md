@@ -1,10 +1,10 @@
 # Audio fixtures for manual / smoke tests
 
-These files are **not** loaded by Vitest. They exist for `scripts/smoke-test-whistle.mjs` and local debugging.
+These files are **not** loaded by Vitest. They exist for voice-clip smokes and local debugging.
 
 | File | Description |
 | --- | --- |
-| `smoke-whistle-hello.wav` | Short espeak-ng phrase (“Hello, this is a Whistle smoke test.”). Default input for the Whistle smoke script. |
-| `sample-tone.wav` | Synthetic dual-tone clip (16 kHz mono). Useful to verify load + transcribe wiring; Whistle may not produce meaningful words. |
+| `voice-smoke-hello.wav` | Short spoken phrase for `npm run smoke:voice-clip`. Same clip as Cloud E2E `obsidian-plugin-development/scripts/cloud-e2e/fixtures/voice/smoke-hello.wav`. |
+| `sample-tone.wav` | Synthetic dual-tone clip (16 kHz mono). Wiring checks only; not meaningful speech. |
 
-Use your own `.wav`, `.mp3`, or `.webm` for realistic speech; ffmpeg must be on `PATH`.
+Sandbox default: `run-voice-clip-smoke.sh whistle` passes the shared Cloud clip (or set `CLOUD_E2E_VOICE_CLIP`).

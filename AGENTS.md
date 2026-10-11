@@ -14,7 +14,7 @@ Setup is owned by `obsidian-plugin-development`. This repo ships the shared poin
 
 Project doc: `/cursor/stores/bc-a8a2e9ee-3f2b-4d31-ae8c-85b3734c071e/docs/cursor-environment-docs.md`
 
-**Sandbox Whistle smoke:** `bash /agent/repos/obsidian-plugin-development/scripts/cloud-e2e/run-whistle-smoke.sh` (ffmpeg; first run downloads the model to `$HOME/.whistle-smoke-cache`). Vault attachment `Attachments/whistle-smoke-hello.wav` and note `Notes/Whistle smoke test.md` after `materialize-vault.sh`.
+**Sandbox voice-clip smoke (Whistle):** `bash /agent/repos/obsidian-plugin-development/scripts/cloud-e2e/run-voice-clip-smoke.sh whistle` — shared clip in `fixtures/voice/smoke-hello.wav`; vault `Attachments/voice-smoke-hello.wav`; see `Notes/Voice clip smoke test.md`.
 
 ## Code style
 
@@ -28,19 +28,19 @@ Staging first: copy `main.js`, `manifest.json`, and `styles.css` to `C:\plugin-s
 
 `npm test` is offline (Vitest). Live session tests in `tests/GeminiLiveTranscriber.test.ts` use a fake WebSocket. Protocol helpers live in `tests/liveProtocol.test.ts`. Those mocks cannot catch Gemini Live API protocol drift.
 
-## Whistle (on-device) smoke test
+## Whistle voice-clip smoke (plugin-local)
 
 When batch Whistle fails in Obsidian or you need to verify the real Needle WASM engine outside the app, run the offline smoke script. It is **not** part of `npm test` (first run downloads wasm + weights from Hugging Face, ~17 MB).
 
-Requires **ffmpeg** on `PATH` and Node 18+ (`fetch`). Optional `WHISTLE_CACHE_DIR` overrides the default cache under `.whistle-smoke-cache/` in the repo.
+Requires **ffmpeg** on `PATH` and Node 18+ (`fetch`). Honors `CLOUD_E2E_VOICE_CLIP` / `VOICE_CLIP` when no path argument is passed. Optional `WHISTLE_CACHE_DIR` overrides the default cache under `.whistle-smoke-cache/` in the repo.
 
 ```powershell
 Set-Location C:\Coding_projects\whisper-obsidian-plugin
-npm run smoke:whistle
+npm run smoke:voice-clip
 # or: node scripts/smoke-test-whistle.mjs path\to\your-speech.wav
 ```
 
-Default audio is `tests/fixtures/smoke-whistle-hello.wav`. Expect `Engine ready.`, a JSON line, then `Transcript: …` with non-empty text. Exit code 0 means load + transcribe succeeded.
+In Cloud sandbox, prefer the shared runner: `run-voice-clip-smoke.sh whistle`. Default local audio: `tests/fixtures/voice-smoke-hello.wav`. Expect `Engine ready.`, a JSON line, then `Transcript: …` with non-empty text. Exit code 0 means load + transcribe succeeded.
 
 ## Gemini Live hard debug
 

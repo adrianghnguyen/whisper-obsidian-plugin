@@ -9,7 +9,7 @@
  * Usage:
  *   node scripts/smoke-test-whistle.mjs [path-to-audio]
  *
- * Default audio: tests/fixtures/smoke-whistle-hello.wav
+ * Default audio: argv, then CLOUD_E2E_VOICE_CLIP / VOICE_CLIP, then tests/fixtures/voice-smoke-hello.wav
  *
  * Requires: Node 18+ (global fetch), ffmpeg on PATH.
  * Optional: WHISTLE_CACHE_DIR — directory for needle.wasm and whistle.cact
@@ -33,10 +33,24 @@ const CACHE_WASM = "needle.wasm";
 const CACHE_WEIGHTS = "whistle.cact";
 const OUTPUT_CAPACITY = 65536;
 
-const defaultFixture = path.join(
+const localFixture = path.join(
 	repoRoot,
-	"tests/fixtures/smoke-whistle-hello.wav"
+	"tests/fixtures/voice-smoke-hello.wav"
 );
+
+function resolveDefaultAudioPath() {
+	const fromEnv =
+		process.env.CLOUD_E2E_VOICE_CLIP?.trim() ||
+		process.env.VOICE_CLIP?.trim();
+	if (fromEnv) {
+		return path.resolve(fromEnv);
+	}
+	const siblingClip = path.resolve(
+		repoRoot,
+		"../obsidian-plugin-development/scripts/cloud-e2e/fixtures/voice/smoke-hello.wav"
+	);
+	return localFixture;
+}
 
 function convertToFloat32Pcm(inputPath) {
 	return new Promise((resolve, reject) => {
@@ -159,7 +173,25 @@ function transcribe(Module, pcm) {
 }
 
 async function main() {
-	const audioPath = path.resolve(process.argv[2] ?? defaultFixture);
+	let audioPath = process.argv[2]
+		? path.resolve(process.argv[2])
+		: resolveDefaultAudioPath();
+	if (!process.argv[2]) {
+		try {
+			await fs.access(audioPath);
+		} catch {
+			const sibling = path.resolve(
+				repoRoot,
+				"../obsidian-plugin-development/scripts/cloud-e2e/fixtures/voice/smoke-hello.wav"
+			);
+			try {
+				await fs.access(sibling);
+				audioPath = sibling;
+			} catch {
+				/* use localFixture path for error message */
+			}
+		}
+	}
 	const cacheDir =
 		process.env.WHISTLE_CACHE_DIR ??
 		path.join(repoRoot, ".whistle-smoke-cache");

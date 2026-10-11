@@ -9,7 +9,8 @@
 		"format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"main.ts\"",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"smoke:whistle": "node scripts/smoke-test-whistle.mjs",
+		"smoke:voice-clip": "node scripts/smoke-test-whistle.mjs",
+		"smoke:whistle": "npm run smoke:voice-clip",
 		"release": "release-it"
 	},
 	"keywords": [],
