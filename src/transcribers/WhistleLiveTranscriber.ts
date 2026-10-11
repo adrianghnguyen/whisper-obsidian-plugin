@@ -90,7 +90,7 @@ export class WhistleLiveTranscriber {
 				: this.plugin.settings.audioDeviceId;
 		this.recorder.setDeviceId(deviceId);
 
-		let downloadNotice: Notice | null = null;
+		const download = { notice: null as Notice | null };
 		try {
 			const loadEngine =
 				this.loadEngine ??
@@ -100,20 +100,20 @@ export class WhistleLiveTranscriber {
 						onProgress,
 					}));
 			this.engine = await loadEngine((event) => {
-				if (event.status === "downloading" && !downloadNotice) {
-					downloadNotice = new Notice(
+				if (event.status === "downloading" && !download.notice) {
+					download.notice = new Notice(
 						"Downloading Whistle model (~17 MB)…",
 						0
 					);
 				}
-				if (event.status === "ready" && downloadNotice) {
-					downloadNotice.hide();
-					downloadNotice = null;
+				if (event.status === "ready" && download.notice) {
+					download.notice.hide();
+					download.notice = null;
 					new Notice("Whistle model ready");
 				}
-				if (event.status === "error" && downloadNotice) {
-					downloadNotice.hide();
-					downloadNotice = null;
+				if (event.status === "error" && download.notice) {
+					download.notice.hide();
+					download.notice = null;
 				}
 			});
 			if (!this.engine.streamProcess || !this.engine.streamStop) {
@@ -130,9 +130,7 @@ export class WhistleLiveTranscriber {
 				new Notice("Whistle Live streaming started");
 			}
 		} catch (err) {
-			if (downloadNotice) {
-				downloadNotice.hide();
-			}
+			download.notice?.hide();
 			console.error("Failed to start Whistle Live stream:", err);
 			const detail = err instanceof Error ? err.message : String(err);
 			new Notice("✘ Could not start live transcription: " + detail);
