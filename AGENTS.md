@@ -14,6 +14,8 @@ Setup is owned by `obsidian-plugin-development`. This repo ships the shared poin
 
 Project doc: `/cursor/stores/bc-a8a2e9ee-3f2b-4d31-ae8c-85b3734c071e/docs/cursor-environment-docs.md`
 
+**Sandbox Whistle smoke:** `bash /agent/repos/obsidian-plugin-development/scripts/cloud-e2e/run-whistle-smoke.sh` (ffmpeg; first run downloads the model to `$HOME/.whistle-smoke-cache`). Vault attachment `Attachments/whistle-smoke-hello.wav` and note `Notes/Whistle smoke test.md` after `materialize-vault.sh`.
+
 ## Code style
 
 Multi-line comments: use `/* ... */` block comments, not stacked `//` lines. Single-line `//` is fine for one-liners.
