@@ -1,6 +1,8 @@
 import {
+	parseWhistleStreamJson,
 	parseWhistleTranscriptJson,
 	type WhistleCallOptions,
+	type WhistleStreamResult,
 	type WhistleTranscript,
 } from "./options";
 
@@ -46,6 +48,39 @@ function copyFloat32ToHeap(Module: NeedleModule, pcm: Float32Array): number {
 	return copyBytesToHeap(Module, bytes);
 }
 
+const EMPTY_CALL_OPTIONS: WhistleCallOptions = {
+	language: null,
+	keywords: null,
+	wordTimestamps: false,
+};
+
+function callNeedleJson(
+	Module: NeedleModule,
+	name: string,
+	argTypes: string[],
+	args: unknown[]
+): string {
+	const outPtr = Module._malloc(OUTPUT_CAPACITY);
+	if (!outPtr) {
+		throw new Error("Whistle output buffer allocation failed");
+	}
+	try {
+		const rc = Module.ccall(name, "number", argTypes, [
+			...args,
+			outPtr,
+			OUTPUT_CAPACITY,
+		]) as number;
+		if (rc < 0) {
+			throw new Error(
+				`Whistle ${name} failed: ${lastNeedleError(Module)}`
+			);
+		}
+		return Module.UTF8ToString(outPtr);
+	} finally {
+		Module._free(outPtr);
+	}
+}
+
 export async function instantiateNeedleEngine(
 	wasmBytes: Uint8Array,
 	weightsBytes: Uint8Array
@@ -54,6 +89,11 @@ export async function instantiateNeedleEngine(
 		pcm: Float32Array,
 		options?: WhistleCallOptions
 	): WhistleTranscript;
+	streamProcess(
+		pcm: Float32Array,
+		options?: WhistleCallOptions
+	): WhistleStreamResult;
+	streamStop(): WhistleStreamResult;
 }> {
 	const Module = await createNeedle({ wasmBinary: wasmBytes });
 
@@ -79,50 +119,70 @@ export async function instantiateNeedleEngine(
 			pcm: Float32Array,
 			options?: WhistleCallOptions
 		): WhistleTranscript {
-			const opts = options ?? {
-				language: null,
-				keywords: null,
-				wordTimestamps: false,
-			};
+			const opts = options ?? EMPTY_CALL_OPTIONS;
 			const pcmPtr = copyFloat32ToHeap(Module, pcm);
-			const outPtr = Module._malloc(OUTPUT_CAPACITY);
-			if (!outPtr) {
-				Module._free(pcmPtr);
-				throw new Error("Whistle output buffer allocation failed");
-			}
 			try {
-				const rc = Module.ccall(
-					"needle_transcribe",
-					"number",
-					[
-						"number",
-						"number",
-						"string",
-						"string",
-						"number",
-						"number",
-						"number",
-					],
-					[
-						pcmPtr,
-						pcm.length,
-						opts.language,
-						opts.keywords,
-						opts.wordTimestamps ? 1 : 0,
-						outPtr,
-						OUTPUT_CAPACITY,
-					]
-				) as number;
-				if (rc < 0) {
-					throw new Error(
-						`Whistle transcribe failed: ${lastNeedleError(Module)}`
-					);
-				}
-				return parseWhistleTranscriptJson(Module.UTF8ToString(outPtr));
+				return parseWhistleTranscriptJson(
+					callNeedleJson(
+						Module,
+						"needle_transcribe",
+						[
+							"number",
+							"number",
+							"string",
+							"string",
+							"number",
+							"number",
+							"number",
+						],
+						[
+							pcmPtr,
+							pcm.length,
+							opts.language,
+							opts.keywords,
+							opts.wordTimestamps ? 1 : 0,
+						]
+					)
+				);
 			} finally {
 				Module._free(pcmPtr);
-				Module._free(outPtr);
 			}
+		},
+		streamProcess(
+			pcm: Float32Array,
+			options?: WhistleCallOptions
+		): WhistleStreamResult {
+			const opts = options ?? EMPTY_CALL_OPTIONS;
+			const pcmPtr = copyFloat32ToHeap(Module, pcm);
+			try {
+				return parseWhistleStreamJson(
+					callNeedleJson(
+						Module,
+						"needle_stream_transcribe_process",
+						[
+							"number",
+							"number",
+							"string",
+							"string",
+							"number",
+							"number",
+						],
+						[pcmPtr, pcm.length, opts.language, opts.keywords]
+					)
+				);
+			} finally {
+				Module._free(pcmPtr);
+			}
+		},
+		streamStop(): WhistleStreamResult {
+			return parseWhistleStreamJson(
+				callNeedleJson(
+					Module,
+					"needle_stream_transcribe_stop",
+					["number", "number"],
+					[]
+				)
+			);
 		},
 	};
 }

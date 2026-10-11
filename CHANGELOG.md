@@ -5,6 +5,7 @@
 ### Added
 
 - **Whistle on-device STT** — optional Cactus Whistle provider (Needle WASM) for batch transcription with no API key; first use downloads model files (~17 MB) into the plugin cache folder.
+- **Whistle Live** — on-device streaming transcription via Needle's stream API (`needle_stream_transcribe_process`); no API key, shares the Whistle model cache, and writes interim then committed words into the note.
 
 ## [1.14.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.13.0...1.14.0) (2026-09-28)
 

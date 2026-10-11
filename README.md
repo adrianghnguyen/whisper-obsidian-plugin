@@ -2,7 +2,7 @@
 
 Record or upload audio, transcribe with [Whisper](https://openai.com/research/whisper), and optionally post-process the result with an LLM. Works on desktop and mobile.
 
-Works with OpenAI, Groq, Azure, or any other Whisper-compatible API. **Whistle (on-device)** transcribes locally with no API key (one-time ~17 MB model download).
+Works with OpenAI, Groq, Azure, or any other Whisper-compatible API. **Whistle (on-device)** transcribes locally with no API key (one-time ~17 MB model download). **Whistle Live** streams the same on-device model into the note as you speak.
 
 Choose the active provider under **Settings → Whisper → Provider**.
 

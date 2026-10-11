@@ -5,9 +5,11 @@ export interface WhisperSettingsLayout {
 	showGeminiApiKey: boolean;
 	showOpenAiTranscriptionSettings: boolean;
 	showWhistleTranscriptionSettings: boolean;
+	showWhistleWordTimestamps: boolean;
 	showPostProcessing: boolean;
 	showGeminiApiConfig: boolean;
 	showGeminiLiveConfig: boolean;
+	showWhistleLiveConfig: boolean;
 }
 
 export function getWhisperSettingsLayout(
@@ -20,9 +22,11 @@ export function getWhisperSettingsLayout(
 				showGeminiApiKey: true,
 				showOpenAiTranscriptionSettings: false,
 				showWhistleTranscriptionSettings: false,
+				showWhistleWordTimestamps: false,
 				showPostProcessing: false,
 				showGeminiApiConfig: true,
 				showGeminiLiveConfig: false,
+				showWhistleLiveConfig: false,
 			};
 		case "gemini-live":
 			return {
@@ -30,9 +34,11 @@ export function getWhisperSettingsLayout(
 				showGeminiApiKey: true,
 				showOpenAiTranscriptionSettings: false,
 				showWhistleTranscriptionSettings: false,
+				showWhistleWordTimestamps: false,
 				showPostProcessing: false,
 				showGeminiApiConfig: false,
 				showGeminiLiveConfig: true,
+				showWhistleLiveConfig: false,
 			};
 		case "whistle":
 			return {
@@ -40,9 +46,23 @@ export function getWhisperSettingsLayout(
 				showGeminiApiKey: false,
 				showOpenAiTranscriptionSettings: false,
 				showWhistleTranscriptionSettings: true,
+				showWhistleWordTimestamps: true,
 				showPostProcessing: true,
 				showGeminiApiConfig: false,
 				showGeminiLiveConfig: false,
+				showWhistleLiveConfig: false,
+			};
+		case "whistle-live":
+			return {
+				showWhisperApiKey: false,
+				showGeminiApiKey: false,
+				showOpenAiTranscriptionSettings: false,
+				showWhistleTranscriptionSettings: true,
+				showWhistleWordTimestamps: false,
+				showPostProcessing: false,
+				showGeminiApiConfig: false,
+				showGeminiLiveConfig: false,
+				showWhistleLiveConfig: true,
 			};
 		default:
 			return {
@@ -50,9 +70,11 @@ export function getWhisperSettingsLayout(
 				showGeminiApiKey: false,
 				showOpenAiTranscriptionSettings: true,
 				showWhistleTranscriptionSettings: false,
+				showWhistleWordTimestamps: false,
 				showPostProcessing: true,
 				showGeminiApiConfig: false,
 				showGeminiLiveConfig: false,
+				showWhistleLiveConfig: false,
 			};
 	}
 }

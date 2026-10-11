@@ -8,7 +8,10 @@ import { NativeAudioRecorder } from "src/AudioRecorder";
 import { RecordingStatus, StatusBar } from "src/StatusBar";
 import { getExtensionFromMimeType } from "src/utils";
 import { liveHighlightExtension } from "src/transcribers/liveHighlight";
-import { isProviderEnabled } from "src/transcribers/registry";
+import {
+	isLiveProvider,
+	isProviderEnabled,
+} from "src/transcribers/registry";
 export default class Whisper extends Plugin {
 	settings: PluginSettings;
 	settingsManager: SettingsManager;
@@ -133,7 +136,7 @@ export default class Whisper extends Plugin {
 		}
 
 		// Live streaming path: no modal, no NativeAudioRecorder
-		if (this.settings.transcriptionProvider === "gemini-live") {
+		if (isLiveProvider(this.settings.transcriptionProvider)) {
 			await this.audioHandler.liveStream.startStream();
 			if (!this.audioHandler.liveStream.isActive) {
 				this.statusBar.updateStatus(RecordingStatus.Idle);
@@ -162,7 +165,7 @@ export default class Whisper extends Plugin {
 		}
 
 		// Live streaming path
-		if (this.settings.transcriptionProvider === "gemini-live") {
+		if (isLiveProvider(this.settings.transcriptionProvider)) {
 			this.statusBar.updateStatus(RecordingStatus.Processing);
 			await this.audioHandler.liveStream.stopStream();
 			this.statusBar.updateStatus(RecordingStatus.Idle);
@@ -180,7 +183,7 @@ export default class Whisper extends Plugin {
 	}
 
 	async pauseRecording() {
-		if (this.settings.transcriptionProvider === "gemini-live") {
+		if (isLiveProvider(this.settings.transcriptionProvider)) {
 			new Notice("Pause is not available for live streaming");
 			return;
 		}
@@ -202,7 +205,7 @@ export default class Whisper extends Plugin {
 		) {
 			return;
 		}
-		if (this.settings.transcriptionProvider === "gemini-live") {
+		if (isLiveProvider(this.settings.transcriptionProvider)) {
 			await this.audioHandler.liveStream.stopStream();
 			this.statusBar.updateStatus(RecordingStatus.Idle);
 			new Notice("Recording cancelled");

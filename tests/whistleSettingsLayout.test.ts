@@ -8,9 +8,11 @@ describe("getWhisperSettingsLayout", () => {
 			showGeminiApiKey: false,
 			showOpenAiTranscriptionSettings: true,
 			showWhistleTranscriptionSettings: false,
+			showWhistleWordTimestamps: false,
 			showPostProcessing: true,
 			showGeminiApiConfig: false,
 			showGeminiLiveConfig: false,
+			showWhistleLiveConfig: false,
 		});
 	});
 
@@ -20,9 +22,11 @@ describe("getWhisperSettingsLayout", () => {
 			showGeminiApiKey: true,
 			showOpenAiTranscriptionSettings: false,
 			showWhistleTranscriptionSettings: false,
+			showWhistleWordTimestamps: false,
 			showPostProcessing: false,
 			showGeminiApiConfig: true,
 			showGeminiLiveConfig: false,
+			showWhistleLiveConfig: false,
 		});
 	});
 
@@ -32,9 +36,11 @@ describe("getWhisperSettingsLayout", () => {
 			showGeminiApiKey: true,
 			showOpenAiTranscriptionSettings: false,
 			showWhistleTranscriptionSettings: false,
+			showWhistleWordTimestamps: false,
 			showPostProcessing: false,
 			showGeminiApiConfig: false,
 			showGeminiLiveConfig: true,
+			showWhistleLiveConfig: false,
 		});
 	});
 
@@ -44,9 +50,25 @@ describe("getWhisperSettingsLayout", () => {
 			showGeminiApiKey: false,
 			showOpenAiTranscriptionSettings: false,
 			showWhistleTranscriptionSettings: true,
+			showWhistleWordTimestamps: true,
 			showPostProcessing: true,
 			showGeminiApiConfig: false,
 			showGeminiLiveConfig: false,
+			showWhistleLiveConfig: false,
+		});
+	});
+
+	it("shows Whistle language plus live editor settings for Whistle Live", () => {
+		expect(getWhisperSettingsLayout("whistle-live")).toEqual({
+			showWhisperApiKey: false,
+			showGeminiApiKey: false,
+			showOpenAiTranscriptionSettings: false,
+			showWhistleTranscriptionSettings: true,
+			showWhistleWordTimestamps: false,
+			showPostProcessing: false,
+			showGeminiApiConfig: false,
+			showGeminiLiveConfig: false,
+			showWhistleLiveConfig: true,
 		});
 	});
 });

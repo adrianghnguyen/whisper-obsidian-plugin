@@ -14,6 +14,7 @@ export type WhistleLanguage = (typeof WHISTLE_LANGUAGES)[number];
 
 export const WHISTLE_SAMPLE_RATE = 16000;
 export const WHISTLE_MAX_CLIP_SECONDS = 30;
+export const WHISTLE_STREAM_CHUNK_SAMPLES = WHISTLE_SAMPLE_RATE;
 
 export interface WhistleWordTimestamp {
 	word: string;
@@ -28,6 +29,15 @@ export interface WhistleTranscript {
 	ttft_ms: number;
 	decode_tps: number;
 	words?: WhistleWordTimestamp[];
+}
+
+export interface WhistleStreamResult {
+	text: string;
+	words?: WhistleWordTimestamp[];
+	pending: string;
+	language: string;
+	received: number;
+	pass_ms: number;
 }
 
 export interface WhistleCallOptions {
@@ -87,6 +97,18 @@ export function parseWhistleTranscriptJson(raw: string): WhistleTranscript {
 		ttft_ms: parsed.ttft_ms ?? 0,
 		decode_tps: parsed.decode_tps ?? 0,
 		words: parsed.words,
+	};
+}
+
+export function parseWhistleStreamJson(raw: string): WhistleStreamResult {
+	const parsed = JSON.parse(raw) as WhistleStreamResult;
+	return {
+		text: parsed.text ?? "",
+		words: parsed.words,
+		pending: parsed.pending ?? "",
+		language: parsed.language ?? "",
+		received: parsed.received ?? 0,
+		pass_ms: parsed.pass_ms ?? 0,
 	};
 }
 

@@ -117,7 +117,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			new Setting(containerEl).setName("Whistle").setHeading();
 			this.createWhistleLanguageSetting();
 			this.createWhistleKeywordsSetting();
-			this.createWhistleWordTimestampsSetting();
+			if (layout.showWhistleWordTimestamps) {
+				this.createWhistleWordTimestampsSetting();
+			}
 		}
 
 		// --- Recording ---
@@ -167,6 +169,11 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				.setName("Gemini Live — editor")
 				.setHeading();
 			this.createGeminiLivePauseDelaySetting();
+			this.createLiveInterimHighlightSettings();
+		} else if (layout.showWhistleLiveConfig) {
+			new Setting(containerEl)
+				.setName("Whistle Live — editor")
+				.setHeading();
 			this.createLiveInterimHighlightSettings();
 		} else if (isGemini) {
 			new Setting(containerEl)
@@ -365,7 +372,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Active provider")
 			.setDesc(
-				"OpenAI uses cloud Whisper-compatible APIs. Gemini API and Gemini Live share one Google AI Studio key (Live streams in real time). Whistle runs on-device with no API key; the first use downloads about 17 MB of model files."
+				"OpenAI uses cloud Whisper-compatible APIs. Gemini API and Gemini Live share one Google AI Studio key (Live streams in real time). Whistle and Whistle Live run on-device with no API key; the first use downloads about 17 MB of model files."
 			)
 			.addDropdown((dropdown) => {
 				for (const [value, label] of Object.entries(providers)) {
@@ -521,7 +528,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Highlight live text")
 			.setDesc(
-				"Show a background on interim (in-progress) transcription while Gemini Live is streaming."
+				"Show a background on interim (in-progress) transcription while live streaming is active."
 			)
 			.addToggle((toggle) =>
 				toggle

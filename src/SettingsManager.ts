@@ -27,7 +27,8 @@ export type TranscriptionProvider =
 	| "openai"
 	| "gemini"
 	| "gemini-live"
-	| "whistle";
+	| "whistle"
+	| "whistle-live";
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
 
 export const PROVIDER_URLS: Record<PostProcessingProvider, string> = {

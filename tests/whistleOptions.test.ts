@@ -7,7 +7,9 @@ import {
 	joinTranscripts,
 	normalizeWhistleKeywords,
 	normalizeWhistleLanguage,
+	parseWhistleStreamJson,
 	parseWhistleTranscriptJson,
+	WHISTLE_STREAM_CHUNK_SAMPLES,
 } from "../src/transcribers/whistle/options";
 
 describe("Whistle language list", () => {
@@ -26,6 +28,10 @@ describe("Whistle language list", () => {
 	it("transcribes 16 kHz audio in 30-second windows", () => {
 		expect(WHISTLE_SAMPLE_RATE).toBe(16000);
 		expect(WHISTLE_MAX_CLIP_SECONDS).toBe(30);
+	});
+
+	it("feeds the live stream in one-second chunks", () => {
+		expect(WHISTLE_STREAM_CHUNK_SAMPLES).toBe(WHISTLE_SAMPLE_RATE);
 	});
 });
 
@@ -176,6 +182,72 @@ describe("parseWhistleTranscriptJson", () => {
 
 	it("throws on invalid JSON", () => {
 		expect(() => parseWhistleTranscriptJson("not-json")).toThrow();
+	});
+});
+
+describe("parseWhistleStreamJson", () => {
+	it("reads committed text and the unconfirmed tail", () => {
+		expect(
+			parseWhistleStreamJson(
+				JSON.stringify({
+					text: "turn off",
+					pending: "the kitchen",
+					language: "en",
+					received: 2.0,
+					pass_ms: 41.2,
+					words: [
+						{
+							word: "turn",
+							start: 0.12,
+							end: 0.28,
+							probability: 0.99,
+						},
+					],
+				})
+			)
+		).toEqual({
+			text: "turn off",
+			pending: "the kitchen",
+			language: "en",
+			received: 2.0,
+			pass_ms: 41.2,
+			words: [
+				{
+					word: "turn",
+					start: 0.12,
+					end: 0.28,
+					probability: 0.99,
+				},
+			],
+		});
+	});
+
+	it("treats silence as empty committed and pending text", () => {
+		expect(
+			parseWhistleStreamJson(
+				'{"text":"","pending":"","language":"","received":1,"pass_ms":8}'
+			)
+		).toEqual({
+			text: "",
+			pending: "",
+			language: "",
+			received: 1,
+			pass_ms: 8,
+		});
+	});
+
+	it("fills missing fields instead of throwing", () => {
+		expect(parseWhistleStreamJson("{}")).toEqual({
+			text: "",
+			pending: "",
+			language: "",
+			received: 0,
+			pass_ms: 0,
+		});
+	});
+
+	it("throws on invalid JSON", () => {
+		expect(() => parseWhistleStreamJson("not-json")).toThrow();
 	});
 });
 

@@ -1,5 +1,9 @@
 import { requestUrl } from "obsidian";
-import type { WhistleCallOptions, WhistleTranscript } from "./options";
+import type {
+	WhistleCallOptions,
+	WhistleStreamResult,
+	WhistleTranscript,
+} from "./options";
 import { instantiateNeedleEngine } from "./needleInstantiate";
 
 export const DEFAULT_WHISTLE_WASM_URL =
@@ -34,6 +38,11 @@ export interface WhistleEngine {
 		pcm: Float32Array,
 		options?: WhistleCallOptions
 	): WhistleTranscript | Promise<WhistleTranscript>;
+	streamProcess?(
+		pcm: Float32Array,
+		options?: WhistleCallOptions
+	): WhistleStreamResult | Promise<WhistleStreamResult>;
+	streamStop?(): WhistleStreamResult | Promise<WhistleStreamResult>;
 }
 
 export interface WhistleByteCache {

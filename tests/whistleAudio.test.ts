@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
+import { floatToPcm16Base64 } from "../src/transcribers/liveProtocol";
 import {
 	WHISTLE_MAX_SAMPLES,
+	concatFloat32,
 	mixToMono,
+	pcm16Base64ToFloat32,
 	pcmFromDecoded,
+	takeStreamChunks,
 } from "../src/transcribers/whistle/audio";
-import { WHISTLE_MAX_CLIP_SECONDS, WHISTLE_SAMPLE_RATE } from "../src/transcribers/whistle/options";
+import {
+	WHISTLE_MAX_CLIP_SECONDS,
+	WHISTLE_SAMPLE_RATE,
+	WHISTLE_STREAM_CHUNK_SAMPLES,
+} from "../src/transcribers/whistle/options";
 
 describe("mixToMono", () => {
 	it("returns a single channel unchanged", () => {
@@ -61,5 +69,47 @@ describe("WHISTLE_MAX_SAMPLES", () => {
 		expect(WHISTLE_MAX_SAMPLES).toBe(
 			WHISTLE_MAX_CLIP_SECONDS * WHISTLE_SAMPLE_RATE
 		);
+	});
+});
+
+describe("pcm16Base64ToFloat32", () => {
+	it("round-trips PCM16 base64 from the live recorder", () => {
+		const samples = new Float32Array([0, 0.5, -0.5, 1, -1]);
+		const decoded = pcm16Base64ToFloat32(floatToPcm16Base64(samples));
+		expect(decoded.length).toBe(samples.length);
+		for (let i = 0; i < samples.length; i++) {
+			expect(decoded[i]).toBeCloseTo(samples[i], 4);
+		}
+	});
+});
+
+describe("concatFloat32", () => {
+	it("appends chunks without mutating the originals", () => {
+		const left = new Float32Array([1, 2]);
+		const right = new Float32Array([3]);
+		expect(Array.from(concatFloat32(left, right))).toEqual([1, 2, 3]);
+		expect(Array.from(left)).toEqual([1, 2]);
+	});
+});
+
+describe("takeStreamChunks", () => {
+	it("splits a buffer into 1 s windows and keeps the remainder", () => {
+		const buffer = new Float32Array(WHISTLE_STREAM_CHUNK_SAMPLES * 2 + 12);
+		for (let i = 0; i < buffer.length; i++) {
+			buffer[i] = i;
+		}
+		const { chunks, remainder } = takeStreamChunks(buffer);
+		expect(chunks).toHaveLength(2);
+		expect(chunks[0].length).toBe(WHISTLE_STREAM_CHUNK_SAMPLES);
+		expect(chunks[1][0]).toBe(WHISTLE_STREAM_CHUNK_SAMPLES);
+		expect(remainder.length).toBe(12);
+		expect(remainder[0]).toBe(WHISTLE_STREAM_CHUNK_SAMPLES * 2);
+	});
+
+	it("returns the whole buffer as remainder when it is shorter than a window", () => {
+		const buffer = new Float32Array([1, 2, 3]);
+		const { chunks, remainder } = takeStreamChunks(buffer);
+		expect(chunks).toHaveLength(0);
+		expect(Array.from(remainder)).toEqual([1, 2, 3]);
 	});
 });

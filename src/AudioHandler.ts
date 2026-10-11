@@ -9,14 +9,21 @@ import { Transcriber } from "./transcribers/Transcriber";
 import { OpenAiTranscriber } from "./transcribers/OpenAiTranscriber";
 import { GeminiTranscriber } from "./transcribers/GeminiTranscriber";
 import { GeminiLiveTranscriber } from "./transcribers/GeminiLiveTranscriber";
+import { WhistleLiveTranscriber } from "./transcribers/WhistleLiveTranscriber";
 import { WhistleTranscriber } from "./transcribers/WhistleTranscriber";
 import { getBatchTranscriberKind } from "./transcribers/registry";
+
+export type LiveStreamHandle = Pick<
+	GeminiLiveTranscriber,
+	"isActive" | "startStream" | "stopStream" | "setDeviceId"
+>;
 
 export class AudioHandler {
 	private plugin: Whisper;
 	private openAi: OpenAiTranscriber;
 	private gemini: GeminiTranscriber;
 	private geminiLive: GeminiLiveTranscriber;
+	private whistleLive: WhistleLiveTranscriber;
 	private whistle: WhistleTranscriber;
 
 	constructor(plugin: Whisper) {
@@ -24,10 +31,14 @@ export class AudioHandler {
 		this.openAi = new OpenAiTranscriber();
 		this.gemini = new GeminiTranscriber();
 		this.geminiLive = new GeminiLiveTranscriber(plugin);
+		this.whistleLive = new WhistleLiveTranscriber(plugin);
 		this.whistle = new WhistleTranscriber();
 	}
 
-	get liveStream(): GeminiLiveTranscriber {
+	get liveStream(): LiveStreamHandle {
+		if (this.plugin.settings.transcriptionProvider === "whistle-live") {
+			return this.whistleLive;
+		}
 		return this.geminiLive;
 	}
 
