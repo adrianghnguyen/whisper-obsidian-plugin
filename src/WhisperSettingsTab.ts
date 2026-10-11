@@ -384,6 +384,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						this.plugin.settings.transcriptionProvider =
 							value as TranscriptionProvider;
 						await this.save();
+						this.plugin.statusBar.updateStatusBarItem();
 						this.display();
 					});
 			});
