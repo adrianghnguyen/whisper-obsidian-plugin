@@ -26,6 +26,20 @@ Staging first: copy `main.js`, `manifest.json`, and `styles.css` to `C:\plugin-s
 
 `npm test` is offline (Vitest). Live session tests in `tests/GeminiLiveTranscriber.test.ts` use a fake WebSocket. Protocol helpers live in `tests/liveProtocol.test.ts`. Those mocks cannot catch Gemini Live API protocol drift.
 
+## Whistle (on-device) smoke test
+
+When batch Whistle fails in Obsidian or you need to verify the real Needle WASM engine outside the app, run the offline smoke script. It is **not** part of `npm test` (first run downloads wasm + weights from Hugging Face, ~17 MB).
+
+Requires **ffmpeg** on `PATH` and Node 18+ (`fetch`). Optional `WHISTLE_CACHE_DIR` overrides the default cache under `.whistle-smoke-cache/` in the repo.
+
+```powershell
+Set-Location C:\Coding_projects\whisper-obsidian-plugin
+npm run smoke:whistle
+# or: node scripts/smoke-test-whistle.mjs path\to\your-speech.wav
+```
+
+Default audio is `tests/fixtures/smoke-whistle-hello.wav`. Expect `Engine ready.`, a JSON line, then `Transcript: …` with non-empty text. Exit code 0 means load + transcribe succeeded.
+
 ## Gemini Live hard debug
 
 When the mic session connects but nothing is transcribed, or when Google may have changed the Live wire format, run the real-network smoke test. It is **not** part of `npm test` so CI stays offline.

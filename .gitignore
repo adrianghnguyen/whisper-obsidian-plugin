@@ -28,3 +28,4 @@ data.json
 
 # temporary debug/test artifacts
 .tmp/
+.whistle-smoke-cache/

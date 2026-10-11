@@ -9,6 +9,7 @@
 		"format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"main.ts\"",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"smoke:whistle": "node scripts/smoke-test-whistle.mjs",
 		"release": "release-it"
 	},
 	"keywords": [],
