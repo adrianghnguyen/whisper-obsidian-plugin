@@ -2,12 +2,16 @@ import type { TranscriptionProvider } from "../SettingsManager";
 import { GEMINI_LIVE_MODULE } from "./GeminiLiveTranscriber";
 import { GEMINI_MODULE } from "./GeminiTranscriber";
 import { OPENAI_MODULE } from "./OpenAiTranscriber";
+import { WHISTLE_LIVE_MODULE } from "./WhistleLiveTranscriber";
+import { WHISTLE_MODULE } from "./WhistleTranscriber";
 import type { TranscriptionModuleDescriptor } from "./TranscriptionModule";
 
 const ALL_MODULES: TranscriptionModuleDescriptor[] = [
 	OPENAI_MODULE,
 	GEMINI_MODULE,
 	GEMINI_LIVE_MODULE,
+	WHISTLE_MODULE,
+	WHISTLE_LIVE_MODULE,
 ];
 
 export const TRANSCRIPTION_MODULES: readonly TranscriptionModuleDescriptor[] =
@@ -73,4 +77,25 @@ export function getTranscriptionProviderOptions(
 		options[module.id] = module.label;
 	}
 	return options;
+}
+
+export type BatchTranscriberKind = "openai" | "gemini" | "whistle";
+
+export function isLiveProvider(id: TranscriptionProvider): boolean {
+	return getModuleById(id).isLive;
+}
+
+export function getBatchTranscriberKind(
+	provider: TranscriptionProvider
+): BatchTranscriberKind | null {
+	if (provider === "gemini-live") {
+		return null;
+	}
+	if (provider === "gemini") {
+		return "gemini";
+	}
+	if (provider === "whistle" || provider === "whistle-live") {
+		return "whistle";
+	}
+	return "openai";
 }

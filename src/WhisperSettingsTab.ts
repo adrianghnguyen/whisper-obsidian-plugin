@@ -31,6 +31,8 @@ import {
 	DEFAULT_PAUSE_TOLERANCE_MS,
 	PAUSE_TOLERANCE_OPTIONS,
 } from "./transcribers/toleranceOptions";
+import { getWhisperSettingsLayout } from "./transcribers/whistle/settingsLayout";
+import { WHISTLE_LANGUAGES } from "./transcribers/whistle/options";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private static readonly SAVE_DEBOUNCE_MS = 800;
@@ -58,26 +60,34 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		const isGemini =
-			this.plugin.settings.transcriptionProvider === "gemini";
-		const isGeminiLive =
-			this.plugin.settings.transcriptionProvider === "gemini-live";
-		const isAnyGemini = isGemini || isGeminiLive;
+		const layout = getWhisperSettingsLayout(
+			this.plugin.settings.transcriptionProvider
+		);
+		const isGeminiLive = layout.showGeminiLiveConfig;
+		const isGemini = layout.showGeminiApiConfig;
 
 		// --- Provider (first, drives everything below) ---
 		new Setting(containerEl).setName("Provider").setHeading();
 		this.createTranscriptionProviderSetting();
 
-		// --- API Keys (only the relevant ones for the chosen provider) ---
-		new Setting(containerEl)
-			.setName(isAnyGemini ? "API Key" : "API Keys")
-			.setHeading();
-		if (isAnyGemini) {
-			this.createGeminiApiKeySetting();
-		} else {
-			this.createWhisperApiKeySetting();
-			// Post-processing keys: show only the relevant one
-			if (this.plugin.settings.postProcessing) {
+		const showPostProcessingApiKey =
+			layout.showPostProcessing && this.plugin.settings.postProcessing;
+		const showAnyApiKey =
+			layout.showWhisperApiKey ||
+			layout.showGeminiApiKey ||
+			showPostProcessingApiKey;
+
+		if (showAnyApiKey) {
+			new Setting(containerEl)
+				.setName(layout.showGeminiApiKey ? "API Key" : "API Keys")
+				.setHeading();
+			if (layout.showGeminiApiKey) {
+				this.createGeminiApiKeySetting();
+			}
+			if (layout.showWhisperApiKey) {
+				this.createWhisperApiKeySetting();
+			}
+			if (showPostProcessingApiKey) {
 				switch (this.plugin.settings.postProcessingProvider) {
 					case "openai":
 						this.createOpenAiApiKeySetting();
@@ -92,8 +102,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			}
 		}
 
-		// --- Transcription (OpenAI only) ---
-		if (!isAnyGemini) {
+		if (layout.showOpenAiTranscriptionSettings) {
 			new Setting(containerEl).setName("Transcription").setHeading();
 			this.createApiUrlSetting();
 			this.createModelSetting();
@@ -102,6 +111,15 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createSendCursorContextSetting();
 			this.createTemperatureSetting();
 			this.createResponseFormatSetting();
+		}
+
+		if (layout.showWhistleTranscriptionSettings) {
+			new Setting(containerEl).setName("Whistle").setHeading();
+			this.createWhistleLanguageSetting();
+			this.createWhistleKeywordsSetting();
+			if (layout.showWhistleWordTimestamps) {
+				this.createWhistleWordTimestampsSetting();
+			}
 		}
 
 		// --- Recording ---
@@ -123,7 +141,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		}
 
 		// --- Post-Processing (hidden for Gemini paths) ---
-		if (!isAnyGemini) {
+		if (layout.showPostProcessing) {
 			new Setting(containerEl).setName("Post-processing").setHeading();
 			this.createPostProcessingToggleSetting();
 			if (this.plugin.settings.postProcessing) {
@@ -151,6 +169,11 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				.setName("Gemini Live — editor")
 				.setHeading();
 			this.createGeminiLivePauseDelaySetting();
+			this.createLiveInterimHighlightSettings();
+		} else if (layout.showWhistleLiveConfig) {
+			new Setting(containerEl)
+				.setName("Whistle Live — editor")
+				.setHeading();
 			this.createLiveInterimHighlightSettings();
 		} else if (isGemini) {
 			new Setting(containerEl)
@@ -293,7 +316,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.whisperApiKeySecretId)
 					.onChange(async (value) => {
 						if (this.rebuilding) return;
-						this.plugin.settings.whisperApiKeySecretId = value;
+						this.plugin.settings.whisperApiKeySecretId = value ?? "";
 						await this.settingsManager.saveSettings(
 							this.plugin.settings
 						);
@@ -349,7 +372,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Active provider")
 			.setDesc(
-				"OpenAI / Whisper-compatible endpoints use multipart uploads. Gemini API and Gemini Live share one Google AI Studio key. Live streams in real time."
+				"OpenAI uses cloud Whisper-compatible APIs. Gemini API and Gemini Live share one Google AI Studio key (Live streams in real time). Whistle and Whistle Live run on-device with no API key; the first use downloads about 17 MB of model files."
 			)
 			.addDropdown((dropdown) => {
 				for (const [value, label] of Object.entries(providers)) {
@@ -361,6 +384,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						this.plugin.settings.transcriptionProvider =
 							value as TranscriptionProvider;
 						await this.save();
+						this.plugin.statusBar.updateStatusBarItem();
 						this.display();
 					});
 			});
@@ -505,7 +529,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Highlight live text")
 			.setDesc(
-				"Show a background on interim (in-progress) transcription while Gemini Live is streaming."
+				"Show a background on interim (in-progress) transcription while live streaming is active."
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -741,6 +765,60 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				await this.settingsManager.saveSettings(this.plugin.settings);
 			}
 		);
+	}
+
+	private createWhistleLanguageSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Language")
+			.setDesc(
+				"Auto-detect or choose one of the seven supported languages."
+			)
+			.addDropdown((dropdown) => {
+				dropdown.addOption("", "Auto-detect");
+				for (const code of WHISTLE_LANGUAGES) {
+					dropdown.addOption(code, code);
+				}
+				dropdown
+					.setValue(this.plugin.settings.whistleLanguage)
+					.onChange(async (value) => {
+						this.plugin.settings.whistleLanguage = value;
+						await this.save();
+					});
+			});
+	}
+
+	private createWhistleKeywordsSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Keywords")
+			.setDesc(
+				"Comma- or newline-separated terms to bias recognition (names, jargon)."
+			)
+			.addTextArea((text) => {
+				text
+					.setPlaceholder("Obsidian, vault note")
+					.setValue(this.plugin.settings.whistleKeywords)
+					.onChange((value) => {
+						this.plugin.settings.whistleKeywords = value;
+						this.scheduleDebouncedSave();
+					});
+				text.inputEl.rows = 3;
+			});
+	}
+
+	private createWhistleWordTimestampsSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Word timestamps")
+			.setDesc(
+				"Ask the model for per-word start and end times. The note still receives the full transcript."
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.whistleWordTimestamps)
+					.onChange(async (value) => {
+						this.plugin.settings.whistleWordTimestamps = value;
+						await this.save();
+					});
+			});
 	}
 
 	private async createAudioDeviceSetting(): Promise<void> {

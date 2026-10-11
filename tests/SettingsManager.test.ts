@@ -38,6 +38,12 @@ describe("DEFAULT_SETTINGS", () => {
 		expect(DEFAULT_SETTINGS.transcriptionProvider).toBe("openai");
 	});
 
+	it("defaults Whistle to auto language, no keywords, and no timestamps", () => {
+		expect(DEFAULT_SETTINGS.whistleLanguage).toBe("");
+		expect(DEFAULT_SETTINGS.whistleKeywords).toBe("");
+		expect(DEFAULT_SETTINGS.whistleWordTimestamps).toBe(false);
+	});
+
 	it("has safe Whisper API param defaults", () => {
 		expect(DEFAULT_SETTINGS.temperature).toBe(0);
 		expect(DEFAULT_SETTINGS.responseFormat).toBe("json");

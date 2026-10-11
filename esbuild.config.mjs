@@ -19,6 +19,20 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
+const needleNodeShimPlugin = {
+	name: "needle-node-shim",
+	setup(build) {
+		build.onResolve({ filter: /^node:.*/ }, (args) => ({
+			path: args.path,
+			namespace: "needle-node-shim",
+		}));
+		build.onLoad({ filter: /.*/, namespace: "needle-node-shim" }, () => ({
+			contents: "module.exports = {};",
+			loader: "js",
+		}));
+	},
+};
+
 const context = await esbuild.context({
 	banner: {
 		js: banner,
@@ -47,6 +61,7 @@ const context = await esbuild.context({
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: outFilePath,
+	plugins: [needleNodeShimPlugin],
 });
 
 if (prod) {

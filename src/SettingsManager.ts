@@ -23,7 +23,12 @@ const SECRET_IDS: Record<
 
 export const AUDIO_DEVICE_LS_KEY = "whisper:audioDeviceId";
 
-export type TranscriptionProvider = "openai" | "gemini" | "gemini-live";
+export type TranscriptionProvider =
+	| "openai"
+	| "gemini"
+	| "gemini-live"
+	| "whistle"
+	| "whistle-live";
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
 
 export const PROVIDER_URLS: Record<PostProcessingProvider, string> = {
@@ -67,6 +72,9 @@ export interface WhisperSettings {
 	geminiLiveLanguageCodes: string;
 	geminiLiveCustomVocabulary: string;
 	geminiLivePauseDelay: number;
+	whistleLanguage: string;
+	whistleKeywords: string;
+	whistleWordTimestamps: boolean;
 	language: string;
 	prompt: string;
 	temperature: number;
@@ -129,6 +137,9 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	geminiLiveLanguageCodes: "",
 	geminiLiveCustomVocabulary: "",
 	geminiLivePauseDelay: 750,
+	whistleLanguage: "",
+	whistleKeywords: "",
+	whistleWordTimestamps: false,
 	language: "",
 	prompt: "",
 	temperature: 0,
