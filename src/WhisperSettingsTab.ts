@@ -800,7 +800,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 	private createWhistleWordTimestampsSetting(): void {
 		new Setting(this.containerEl)
 			.setName("Word timestamps")
-			.setDesc("Include per-word timing in the engine JSON (for debugging).")
+			.setDesc(
+				"Ask the model for per-word start and end times. The note still receives the full transcript."
+			)
 			.addToggle((toggle) => {
 				toggle
 					.setValue(this.plugin.settings.whistleWordTimestamps)

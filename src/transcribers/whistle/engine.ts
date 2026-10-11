@@ -103,17 +103,21 @@ async function loadInternal(options: LoadWhistleEngineOptions): Promise<WhistleE
 	let wasm = await cache.read(WHISTLE_CACHE_WASM);
 	let weights = await cache.read(WHISTLE_CACHE_WEIGHTS);
 
-	if (!wasm || !weights) {
-		onProgress?.({ status: "downloading", file: WHISTLE_CACHE_WASM });
+	async function fetchAndCache(
+		name: string,
+		url: string
+	): Promise<Uint8Array> {
+		onProgress?.({ status: "downloading", file: name });
 		try {
-			wasm = await fetchBytes(DEFAULT_WHISTLE_WASM_URL, (loaded, total) => {
+			const bytes = await fetchBytes(url, (loaded, total) => {
 				onProgress?.({
 					status: "downloading",
-					file: WHISTLE_CACHE_WASM,
+					file: name,
 					progress: total ? loaded / total : undefined,
 				});
 			});
-			await cache.write(WHISTLE_CACHE_WASM, wasm);
+			await cache.write(name, bytes);
+			return bytes;
 		} catch (err) {
 			onProgress?.({ status: "error" });
 			throw new WhistleEngineError(
@@ -121,27 +125,16 @@ async function loadInternal(options: LoadWhistleEngineOptions): Promise<WhistleE
 				"download-failed"
 			);
 		}
+	}
 
-		onProgress?.({ status: "downloading", file: WHISTLE_CACHE_WEIGHTS });
-		try {
-			weights = await fetchBytes(
-				DEFAULT_WHISTLE_WEIGHTS_URL,
-				(loaded, total) => {
-					onProgress?.({
-						status: "downloading",
-						file: WHISTLE_CACHE_WEIGHTS,
-						progress: total ? loaded / total : undefined,
-					});
-				}
-			);
-			await cache.write(WHISTLE_CACHE_WEIGHTS, weights);
-		} catch (err) {
-			onProgress?.({ status: "error" });
-			throw new WhistleEngineError(
-				err instanceof Error ? err.message : String(err),
-				"download-failed"
-			);
-		}
+	if (!wasm) {
+		wasm = await fetchAndCache(WHISTLE_CACHE_WASM, DEFAULT_WHISTLE_WASM_URL);
+	}
+	if (!weights) {
+		weights = await fetchAndCache(
+			WHISTLE_CACHE_WEIGHTS,
+			DEFAULT_WHISTLE_WEIGHTS_URL
+		);
 	}
 
 	try {

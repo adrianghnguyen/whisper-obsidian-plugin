@@ -126,9 +126,14 @@ export class Modal {
 
 export class Notice {
 	message: string;
-	constructor(message: string) {
+	constructor(message: string, _timeout?: number) {
 		this.message = message;
 	}
+	hide() {}
+}
+
+export function requestUrl(_options: { url: string; method?: string }) {
+	return Promise.reject(new Error("requestUrl is mocked"));
 }
 
 export class MarkdownView {

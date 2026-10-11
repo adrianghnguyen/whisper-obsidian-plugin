@@ -13,7 +13,6 @@ interface NeedleModule {
 	_malloc(size: number): number;
 	_free(ptr: number): void;
 	HEAPU8: Uint8Array;
-	HEAPF32: Float32Array;
 	ccall(
 		name: string,
 		returnType: string | null,
@@ -30,6 +29,23 @@ function lastNeedleError(Module: NeedleModule): string {
 	return Module.UTF8ToString(ptr);
 }
 
+function copyBytesToHeap(
+	Module: NeedleModule,
+	bytes: Uint8Array
+): number {
+	const ptr = Module._malloc(bytes.byteLength);
+	if (!ptr) {
+		throw new Error("Whistle heap allocation failed");
+	}
+	Module.HEAPU8.set(bytes, ptr);
+	return ptr;
+}
+
+function copyFloat32ToHeap(Module: NeedleModule, pcm: Float32Array): number {
+	const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+	return copyBytesToHeap(Module, bytes);
+}
+
 export async function instantiateNeedleEngine(
 	wasmBytes: Uint8Array,
 	weightsBytes: Uint8Array
@@ -41,13 +57,20 @@ export async function instantiateNeedleEngine(
 }> {
 	const Module = await createNeedle({ wasmBinary: wasmBytes });
 
+	/*
+	 * needle_load reads the .cact in place, so the heap copy must live as
+	 * long as the engine. Do not free cactPtr. Do not pass 17 MB through
+	 * ccall's stackAlloc "array" converter.
+	 */
+	const cactPtr = copyBytesToHeap(Module, weightsBytes);
 	const loadResult = Module.ccall(
 		"needle_load",
 		"number",
-		["array", "number"],
-		[weightsBytes, weightsBytes.length]
+		["number", "number"],
+		[cactPtr, weightsBytes.length]
 	) as number;
 	if (loadResult < 0) {
+		Module._free(cactPtr);
 		throw new Error(`Whistle model load failed: ${lastNeedleError(Module)}`);
 	}
 
@@ -61,26 +84,31 @@ export async function instantiateNeedleEngine(
 				keywords: null,
 				wordTimestamps: false,
 			};
+			const pcmPtr = copyFloat32ToHeap(Module, pcm);
 			const outPtr = Module._malloc(OUTPUT_CAPACITY);
+			if (!outPtr) {
+				Module._free(pcmPtr);
+				throw new Error("Whistle output buffer allocation failed");
+			}
 			try {
 				const rc = Module.ccall(
 					"needle_transcribe",
 					"number",
 					[
-						"array",
+						"number",
 						"number",
 						"string",
 						"string",
-						"boolean",
+						"number",
 						"number",
 						"number",
 					],
 					[
-						pcm,
+						pcmPtr,
 						pcm.length,
 						opts.language,
 						opts.keywords,
-						opts.wordTimestamps,
+						opts.wordTimestamps ? 1 : 0,
 						outPtr,
 						OUTPUT_CAPACITY,
 					]
@@ -90,9 +118,9 @@ export async function instantiateNeedleEngine(
 						`Whistle transcribe failed: ${lastNeedleError(Module)}`
 					);
 				}
-				const json = Module.UTF8ToString(outPtr);
-				return parseWhistleTranscriptJson(json);
+				return parseWhistleTranscriptJson(Module.UTF8ToString(outPtr));
 			} finally {
+				Module._free(pcmPtr);
 				Module._free(outPtr);
 			}
 		},
