@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.15.0-rc.1](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.14.0...1.15.0-rc.1) (2026-10-11)
+## [1.15.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.14.0...1.15.0) (2026-10-11)
 
 ### Added
 
