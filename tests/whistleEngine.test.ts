@@ -60,7 +60,11 @@ describe("loadWhistleEngine", () => {
 			onProgress,
 		});
 
-		expect(engine.transcribe(new Float32Array([0])).text).toBe("ok");
+		expect(
+			(await Promise.resolve(
+				engine.transcribe(new Float32Array([0]))
+			)).text
+		).toBe("ok");
 		expect(fetchBytes).toHaveBeenCalledWith(
 			DEFAULT_WHISTLE_WASM_URL,
 			expect.any(Function)
@@ -139,7 +143,9 @@ describe("loadWhistleEngine", () => {
 			fetchBytes,
 			instantiate,
 		});
-		expect(engine.transcribe(new Float32Array()).text).toBe("ok");
+		expect(
+			(await Promise.resolve(engine.transcribe(new Float32Array()))).text
+		).toBe("ok");
 	});
 
 	it("marks a download failure as download-failed", async () => {

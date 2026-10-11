@@ -9,7 +9,7 @@ import { WHISTLE_MAX_CLIP_SECONDS, WHISTLE_SAMPLE_RATE } from "../src/transcribe
 describe("mixToMono", () => {
 	it("returns a single channel unchanged", () => {
 		const left = new Float32Array([0.1, -0.2, 0.3]);
-		expect(Array.from(mixToMono([left]))).toEqual([0.1, -0.2, 0.3]);
+		expect(Array.from(mixToMono([left]))).toEqual(Array.from(left));
 	});
 
 	it("averages stereo channels", () => {

@@ -132,7 +132,7 @@ describe("WhistleTranscriber", () => {
 			}),
 			decodeAudio: async () => {
 				throw new Error("Unsupported audio type");
-			}),
+			},
 		});
 
 		await expect(
