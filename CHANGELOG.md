@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.15.0-rc.1](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.14.0...1.15.0-rc.1) (2026-10-11)
+
 ### Added
 
 - **Whistle on-device STT** — optional Cactus Whistle provider (Needle WASM) for batch transcription with no API key; first use downloads model files (~17 MB) into the plugin cache folder.
