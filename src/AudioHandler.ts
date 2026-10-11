@@ -9,18 +9,22 @@ import { Transcriber } from "./transcribers/Transcriber";
 import { OpenAiTranscriber } from "./transcribers/OpenAiTranscriber";
 import { GeminiTranscriber } from "./transcribers/GeminiTranscriber";
 import { GeminiLiveTranscriber } from "./transcribers/GeminiLiveTranscriber";
+import { WhistleTranscriber } from "./transcribers/WhistleTranscriber";
+import { getBatchTranscriberKind } from "./transcribers/registry";
 
 export class AudioHandler {
 	private plugin: Whisper;
 	private openAi: OpenAiTranscriber;
 	private gemini: GeminiTranscriber;
 	private geminiLive: GeminiLiveTranscriber;
+	private whistle: WhistleTranscriber;
 
 	constructor(plugin: Whisper) {
 		this.plugin = plugin;
 		this.openAi = new OpenAiTranscriber();
 		this.gemini = new GeminiTranscriber();
 		this.geminiLive = new GeminiLiveTranscriber(plugin);
+		this.whistle = new WhistleTranscriber();
 	}
 
 	get liveStream(): GeminiLiveTranscriber {
@@ -28,12 +32,24 @@ export class AudioHandler {
 	}
 
 	private getTranscriber(): Transcriber {
-		switch (this.plugin.settings.transcriptionProvider) {
+		const kind = getBatchTranscriberKind(
+			this.plugin.settings.transcriptionProvider
+		);
+		switch (kind) {
 			case "gemini":
 				return this.gemini;
+			case "whistle":
+				return this.whistle;
 			default:
 				return this.openAi;
 		}
+	}
+
+	private isBatchPostProcessingProvider(): boolean {
+		const kind = getBatchTranscriberKind(
+			this.plugin.settings.transcriptionProvider
+		);
+		return kind === "openai" || kind === "whistle";
 	}
 
 	private async ensureFolderExists(folderPath: string): Promise<void> {
@@ -98,7 +114,7 @@ export class AudioHandler {
 			// Auto-generate title (OpenAI path only — Gemini skips this)
 			let generatedTitle = baseFileName;
 			if (
-				this.plugin.settings.transcriptionProvider === "openai" &&
+				this.isBatchPostProcessingProvider() &&
 				this.plugin.settings.autoGenerateTitle &&
 				this.plugin.settings.createNoteFile
 			) {
@@ -107,7 +123,7 @@ export class AudioHandler {
 
 			// Build note content with templates
 			const outputText =
-				this.plugin.settings.transcriptionProvider === "openai" &&
+				this.isBatchPostProcessingProvider() &&
 				this.plugin.settings.keepOriginalTranscription &&
 				result.originalText &&
 				finalText !== result.originalText
