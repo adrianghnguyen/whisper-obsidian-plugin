@@ -316,7 +316,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.whisperApiKeySecretId)
 					.onChange(async (value) => {
 						if (this.rebuilding) return;
-						this.plugin.settings.whisperApiKeySecretId = value;
+						this.plugin.settings.whisperApiKeySecretId = value ?? "";
 						await this.settingsManager.saveSettings(
 							this.plugin.settings
 						);
