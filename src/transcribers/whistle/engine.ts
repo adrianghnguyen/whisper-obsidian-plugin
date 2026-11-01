@@ -4,7 +4,10 @@ import type {
 	WhistleStreamResult,
 	WhistleTranscript,
 } from "./options";
-import { instantiateNeedleEngine } from "./needleInstantiate";
+import {
+	instantiateNeedleEngine,
+	type CreateNeedleFn,
+} from "./needleInstantiate";
 
 export const DEFAULT_WHISTLE_WASM_URL =
 	"https://huggingface.co/Cactus-Compute/needle3/resolve/main/wasm/needle.wasm";
@@ -88,12 +91,14 @@ async function defaultFetchBytes(
 	return new Uint8Array(body);
 }
 
-async function defaultInstantiate(
+/** Exported so tests can drive loadInternal / startStream with a fake Needle. */
+export async function defaultInstantiate(
 	wasm: Uint8Array,
-	weights: Uint8Array
+	weights: Uint8Array,
+	createNeedle?: CreateNeedleFn
 ): Promise<WhistleEngine> {
 	try {
-		return await instantiateNeedleEngine(wasm, weights);
+		return await instantiateNeedleEngine(wasm, weights, createNeedle);
 	} catch (err) {
 		throw new WhistleEngineError(
 			err instanceof Error ? err.message : String(err),
