@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.15.1-beta.1](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.0...1.15.1-beta.1) (2026-11-02)
+
 ### Fixed
 
 - **Gemini Live double-paste** — do not append a concatenated failover stream that repeats the last committed utterance; prefer the final in a combined Live frame; ignore in-flight transcripts from the previous socket generation.
