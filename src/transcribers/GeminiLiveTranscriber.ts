@@ -92,6 +92,8 @@ export class GeminiLiveTranscriber {
 	private pendingChunks: string[] = [];
 	private recoveryFailures = 0;
 	private lastFailoverAt = 0;
+	/** Bumped on each socket connect so in-flight Blob decodes cannot paste twice. */
+	private sessionGen = 0;
 	private static readonly MAX_PENDING_CHUNKS = 240;
 
 	constructor(plugin: Whisper, deps: LiveSessionDeps = {}) {
@@ -177,6 +179,8 @@ export class GeminiLiveTranscriber {
 	}
 
 	private async connectSocket(): Promise<void> {
+		this.sessionGen += 1;
+		const connectGen = this.sessionGen;
 		return new Promise((resolve, reject) => {
 			const wsUrl = `${LIVE_WS_URL}?key=${encodeURIComponent(
 				this.plugin.settings.geminiApiKey
@@ -225,7 +229,7 @@ export class GeminiLiveTranscriber {
 			};
 
 			this.socket.onmessage = (event) => {
-				void this.onSocketMessage(event.data, finish);
+				void this.onSocketMessage(event.data, finish, connectGen);
 			};
 
 			this.socket.onclose = (ev) => {
@@ -247,12 +251,17 @@ export class GeminiLiveTranscriber {
 
 	private async onSocketMessage(
 		data: unknown,
-		finish: (err?: Error) => void
+		finish: (err?: Error) => void,
+		connectGen: number
 	): Promise<void> {
 		let text: string;
 		try {
 			text = await decodeWsData(data);
 		} catch {
+			return;
+		}
+
+		if (connectGen !== this.sessionGen) {
 			return;
 		}
 
@@ -283,12 +292,15 @@ export class GeminiLiveTranscriber {
 			finish();
 		}
 
-		if (parsed.interimText) {
-			this.editor.updateInterim(parsed.interimText);
-		}
-
+		/*
+		 * One Live frame can carry both interimInputTranscription and
+		 * inputTranscription. Applying both pastes twice when the strings
+		 * match or when the final is a concatenated stream. Prefer final.
+		 */
 		if (parsed.finalText) {
 			this.editor.commitFinal(parsed.finalText);
+		} else if (parsed.interimText) {
+			this.editor.updateInterim(parsed.interimText);
 		}
 	}
 

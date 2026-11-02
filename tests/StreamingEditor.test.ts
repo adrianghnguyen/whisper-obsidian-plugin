@@ -280,6 +280,26 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		expect(fake.content()).toBe("alpha beta gamma");
 	});
 
+	it("does not append a concatenated failover stream that repeats the last committed utterance", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.commitFinal("hello");
+		expect(fake.content()).toBe("hello");
+
+		/* New Live session concatenates the old utterance with the rest. */
+		streaming.commitFinal("hello hello world");
+		expect(fake.content()).toBe("hello world");
+		expect(fake.content().split("hello").length - 1).toBe(1);
+	});
+
+	it("replaces the last partial instead of inserting a second copy of the same suffix", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("hello");
+		vi.advanceTimersByTime(500);
+		streaming.commitFinal("hello");
+		streaming.updateInterim("hello");
+		expect(fake.content()).toBe("hello");
+	});
+
 	it("does not corrupt a fresh cumulative transcript that merely starts similarly", () => {
 		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
 		streaming.updateInterim("first thought");

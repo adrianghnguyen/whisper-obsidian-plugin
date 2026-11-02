@@ -224,6 +224,80 @@ describe("GeminiLiveTranscriber session", () => {
 		await vi.waitFor(() => expect(editor.finals).toEqual(["hello"]));
 	});
 
+	it("applies only the final when one Live frame carries both interim and final", async () => {
+		const start = transcriber.startStream();
+		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());
+		socket.open();
+		socket.receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		socket.receive(
+			JSON.stringify({
+				serverContent: {
+					interimInputTranscription: { text: "hello" },
+					inputTranscription: { text: "hello" },
+				},
+			})
+		);
+		await vi.waitFor(() => expect(editor.finals).toEqual(["hello"]));
+		expect(editor.interims).toEqual([]);
+	});
+
+	it("drops in-flight transcripts from the previous socket generation after failover", async () => {
+		const sockets: FakeSocket[] = [];
+		const live = new GeminiLiveTranscriber(makePlugin(), {
+			createSocket: () => {
+				const s = new FakeSocket();
+				sockets.push(s);
+				return s;
+			},
+			recorder,
+			editor,
+			flushDelayMs: 0,
+		});
+
+		const start = live.startStream();
+		await vi.waitFor(() => expect(sockets[0].onopen).toBeTruthy());
+		sockets[0].open();
+		sockets[0].receive(JSON.stringify({ setupComplete: {} }));
+		await start;
+
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((r) => {
+			release = r;
+		});
+		const stale = new Blob(
+			[
+				JSON.stringify({
+					serverContent: {
+						inputTranscription: { text: "stale-hello stale-hello" },
+					},
+				}),
+			],
+			{ type: "application/json" }
+		);
+		vi.spyOn(stale, "text").mockImplementation(async () => {
+			await gate;
+			return JSON.stringify({
+				serverContent: {
+					inputTranscription: { text: "stale-hello stale-hello" },
+				},
+			});
+		});
+
+		sockets[0].receive(stale);
+		sockets[0].close();
+		recorder.emit("cGllY2Uy");
+		await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(2));
+		await vi.waitFor(() => expect(sockets[1].onopen).toBeTruthy());
+		sockets[1].open();
+		sockets[1].receive(JSON.stringify({ setupComplete: {} }));
+		release();
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(editor.finals).not.toContain("stale-hello stale-hello");
+	});
+
 	it("ends the stream with audioStreamEnd", async () => {
 		const start = transcriber.startStream();
 		await vi.waitFor(() => expect(socket.onopen).toBeTruthy());

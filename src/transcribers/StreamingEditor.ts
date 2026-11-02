@@ -82,15 +82,57 @@ export class StreamingEditor {
 	private stripCommittedPrefix(text: string): string {
 		let current = text;
 		for (const seg of this.committedSegments) {
-			const trimmedSeg = seg.trim();
-			if (!trimmedSeg) continue;
-			const trimmedCur = current.trimStart();
-			if (trimmedCur.startsWith(trimmedSeg)) {
-				const idx = current.indexOf(trimmedSeg);
-				current = current.slice(idx + trimmedSeg.length).trimStart();
+			current = StreamingEditor.stripLeadingSegment(current, seg);
+		}
+		/*
+		 * A new Live session (failover / overlapping PCM) often repeats the
+		 * last committed utterance at the start of a concatenated stream.
+		 * Keep stripping that last segment while it is a full prefix so we
+		 * do not append "hello hello world".
+		 */
+		const last = this.lastNonEmptyCommitted();
+		if (last) {
+			while (current) {
+				const next = StreamingEditor.stripLeadingSegment(current, last);
+				if (next === current) break;
+				current = next;
 			}
 		}
 		return current;
+	}
+
+	private lastNonEmptyCommitted(): string {
+		for (let i = this.committedSegments.length - 1; i >= 0; i--) {
+			const seg = this.committedSegments[i]?.trim();
+			if (seg) return this.committedSegments[i];
+		}
+		return "";
+	}
+
+	private static stripLeadingSegment(text: string, segment: string): string {
+		const trimmedSeg = segment.trim();
+		if (!trimmedSeg) return text;
+		const trimmedCur = text.trimStart();
+		if (!trimmedCur.startsWith(trimmedSeg)) return text;
+		const idx = text.indexOf(trimmedSeg);
+		if (idx < 0) return text;
+		return text.slice(idx + trimmedSeg.length).trimStart();
+	}
+
+	/** Skip a paste when the note already ends with this committed span. */
+	private alreadyHasSuffix(
+		editor: Editor,
+		pos: { line: number; ch: number },
+		text: string
+	): boolean {
+		if (!text) return false;
+		const lineText = editor.getLine(pos.line) ?? "";
+		const before = lineText.slice(0, pos.ch);
+		return (
+			before.endsWith(text) ||
+			before.endsWith(" " + text) ||
+			before.trimEnd() === text.trim()
+		);
 	}
 
 	/**
@@ -108,6 +150,12 @@ export class StreamingEditor {
 
 		const editor = this.getEditor();
 		if (!editor) return;
+		if (
+			!this.interimAnchor &&
+			this.alreadyHasSuffix(editor, editor.getCursor(), text)
+		) {
+			return;
+		}
 
 		if (!this.interimAnchor) {
 			const cursor = editor.getCursor();
@@ -235,6 +283,11 @@ export class StreamingEditor {
 
 		// No interim anchor and no matching locked text — append at cursor with separator
 		const cursor = editor.getCursor();
+		if (this.alreadyHasSuffix(editor, cursor, text)) {
+			this.committedSegments.push(text);
+			this.clearInterimHighlight();
+			return;
+		}
 		const separator = this.separatorBeforeInsert(editor, cursor, text);
 		editor.replaceRange(separator + text, cursor);
 		const newPos = {
