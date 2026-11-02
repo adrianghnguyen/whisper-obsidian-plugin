@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Whistle Live instantiate** — pass the `.cact` byte length to `needle_load` as a BigInt so Emscripten's HEAP64 i64 write no longer throws `Cannot convert 16919407 to a BigInt` on start or stop.
+
 ## [1.15.0](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.14.0...1.15.0) (2026-10-11)
 
 ### Added

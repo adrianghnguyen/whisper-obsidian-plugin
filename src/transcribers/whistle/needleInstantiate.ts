@@ -7,7 +7,11 @@ import {
 } from "./options";
 
 /* eslint-disable @typescript-eslint/no-var-requires */
-const createNeedle = require("./vendor/needle.js") as (
+const defaultCreateNeedle = require("./vendor/needle.js") as (
+	moduleArg?: Record<string, unknown>
+) => Promise<NeedleModule>;
+
+export type CreateNeedleFn = (
 	moduleArg?: Record<string, unknown>
 ) => Promise<NeedleModule>;
 
@@ -25,6 +29,18 @@ interface NeedleModule {
 }
 
 const OUTPUT_CAPACITY = 65536;
+
+/**
+ * needle_load's byte length is an i64. Emscripten writes it into HEAP64,
+ * which throws `Cannot convert <n> to a BigInt` when given a Number
+ * (whistle.cact is ~16 919 407 bytes).
+ */
+export function toNeedleI64Length(byteLength: number): bigint {
+	if (!Number.isFinite(byteLength) || byteLength < 0) {
+		throw new Error(`Invalid Needle buffer length: ${byteLength}`);
+	}
+	return BigInt(Math.trunc(byteLength));
+}
 
 function lastNeedleError(Module: NeedleModule): string {
 	const ptr = Module.ccall("needle_last_error", "number", [], []) as number;
@@ -83,7 +99,8 @@ function callNeedleJson(
 
 export async function instantiateNeedleEngine(
 	wasmBytes: Uint8Array,
-	weightsBytes: Uint8Array
+	weightsBytes: Uint8Array,
+	createNeedle: CreateNeedleFn = defaultCreateNeedle
 ): Promise<{
 	transcribe(
 		pcm: Float32Array,
@@ -106,8 +123,8 @@ export async function instantiateNeedleEngine(
 	const loadResult = Module.ccall(
 		"needle_load",
 		"number",
-		["number", "number"],
-		[cactPtr, weightsBytes.length]
+		["number", "bigint"],
+		[cactPtr, toNeedleI64Length(weightsBytes.length)]
 	) as number;
 	if (loadResult < 0) {
 		Module._free(cactPtr);
