@@ -314,4 +314,58 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		expect(content.includes("first impressions")).toBe(true);
 		expect(/first impressions matter$/.test(content.trim())).toBe(true);
 	});
+
+	const LOCKED_UTTERANCE =
+		"In terms of how things are going up at work, I think I'm positioning myself as a key linchpin and the fact that Claire is putting me into the right conversation spaces so I can grow and help shape the future of our data architecture and look at our systems and I'm getting paired with some of those subject matter experts on the engineering side of things, which is great. I guess I just have to think of what exactly is the";
+	const FINAL_UTTERANCE =
+		"In terms of how things are going at work, I think I'm positioning myself as a key linchpin, and the fact that Claire is putting me into the right conversation spaces so I can grow and help shape the future of our data architecture and look at our systems. I'm getting paired with some of those subject matter experts on the engineering side of things, which is great. I guess I just have to think of what exactly is the most relevant utility I can most bring to the organization, and maybe that means I need to have a skip-level with Zach or something like that.";
+
+	it("replaces a pause-locked long utterance when a later final is the same speech lightly rewritten", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim(LOCKED_UTTERANCE);
+		vi.advanceTimersByTime(2000);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
+	it("replaces a pause-locked long utterance when the rewritten full text arrives as interim first", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim(LOCKED_UTTERANCE);
+		vi.advanceTimersByTime(2000);
+
+		streaming.updateInterim(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
+	it("replaces after pause lock plus an exact confirming final then a rewritten full final", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim(LOCKED_UTTERANCE);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(LOCKED_UTTERANCE);
+		expect(fake.content()).toBe(LOCKED_UTTERANCE);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
+	it("still appends a different long utterance after the locked span is confirmed", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim(LOCKED_UTTERANCE);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(LOCKED_UTTERANCE);
+		const other =
+			"Meanwhile the grocery list needs milk eggs bread and also I should remember to pick up the dry cleaning before Thursday because the shop closes early.";
+		streaming.commitFinal(other);
+		expect(fake.content().startsWith(LOCKED_UTTERANCE)).toBe(true);
+		expect(fake.content()).toContain(other);
+		expect(fake.content()).not.toBe(other);
+	});
 });
