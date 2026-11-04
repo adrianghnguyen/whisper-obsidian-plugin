@@ -109,6 +109,128 @@ export class StreamingEditor {
 		return "";
 	}
 
+	/*
+	 * Pause-delay lock commits a first-pass interim. Gemini Live later
+	 * often sends the same turn again as a cleaned full final ("going up
+	 * at work" → "going at work"). Exact prefix strip misses that, so
+	 * the second copy would append. Treat a long, same-start rewrite as
+	 * one utterance.
+	 */
+	private static utteranceTokens(text: string): string[] {
+		return text
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, " ")
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean);
+	}
+
+	private static tokenLcsLength(a: string[], b: string[]): number {
+		const rows = a.length + 1;
+		const cols = b.length + 1;
+		const prev = new Uint16Array(cols);
+		const cur = new Uint16Array(cols);
+		for (let i = 1; i < rows; i++) {
+			cur[0] = 0;
+			const token = a[i - 1];
+			for (let j = 1; j < cols; j++) {
+				cur[j] =
+					token === b[j - 1]
+						? prev[j - 1] + 1
+						: Math.max(prev[j], cur[j - 1]);
+			}
+			prev.set(cur);
+		}
+		return prev[b.length];
+	}
+
+	private static isUtteranceRevision(
+		previous: string,
+		incoming: string
+	): boolean {
+		const a = StreamingEditor.utteranceTokens(previous);
+		const b = StreamingEditor.utteranceTokens(incoming);
+		if (a.length < 12 || b.length < 12) return false;
+		if (b.length < a.length * 0.7) return false;
+		const head = Math.min(6, a.length, b.length);
+		let headMatch = 0;
+		for (let i = 0; i < head; i++) {
+			if (a[i] === b[i]) headMatch++;
+		}
+		if (headMatch < head - 1) return false;
+		return StreamingEditor.tokenLcsLength(a, b) / a.length >= 0.82;
+	}
+
+	private rememberCommittedRange(
+		from: { line: number; ch: number },
+		text: string
+	): void {
+		this.lastLockedTextLength = text.length;
+		this.lastLockedRange = {
+			line: from.line,
+			chFrom: from.ch,
+			chTo: from.ch + text.length,
+		};
+	}
+
+	private replaceLastCommittedSegment(text: string): void {
+		const last = this.lastNonEmptyCommitted();
+		const idx = last ? this.committedSegments.lastIndexOf(last) : -1;
+		if (idx >= 0) {
+			this.committedSegments[idx] = text;
+		} else {
+			this.committedSegments.push(text);
+		}
+	}
+
+	private shouldReplaceLastCommitted(incoming: string): boolean {
+		const last = this.lastLockedText || this.lastNonEmptyCommitted();
+		if (!last) return false;
+		const stripped = this.stripCommittedPrefix(incoming);
+		if (!stripped) return false;
+		if (stripped.length < incoming.trimStart().length * 0.5) {
+			return false;
+		}
+		return StreamingEditor.isUtteranceRevision(last, incoming);
+	}
+
+	private reopenLastCommittedAsInterim(): void {
+		if (this.interimAnchor || !this.lastLockedRange) return;
+		const last = this.lastLockedText || this.lastNonEmptyCommitted();
+		if (!last) return;
+		const idx = this.committedSegments.lastIndexOf(last);
+		if (idx >= 0) {
+			this.committedSegments.splice(idx, 1);
+		}
+		this.interimAnchor = {
+			line: this.lastLockedRange.line,
+			ch: this.lastLockedRange.chFrom,
+		};
+		this.currentInterimText = last;
+		this.lastLockedText = "";
+	}
+
+	private tryReplaceLastCommittedSpan(
+		editor: Editor,
+		text: string
+	): boolean {
+		const range = this.lastLockedRange;
+		if (!range) return false;
+		const from = { line: range.line, ch: range.chFrom };
+		const to = { line: range.line, ch: range.chTo };
+		editor.replaceRange(text, from, to);
+		editor.setCursor({
+			line: from.line,
+			ch: from.ch + text.length,
+		});
+		this.replaceLastCommittedSegment(text);
+		this.rememberCommittedRange(from, text);
+		this.lastLockedText = "";
+		this.interimAnchor = null;
+		this.currentInterimText = "";
+		return true;
+	}
+
 	private static stripLeadingSegment(text: string, segment: string): string {
 		const trimmedSeg = segment.trim();
 		if (!trimmedSeg) return text;
@@ -144,6 +266,13 @@ export class StreamingEditor {
 	updateInterim(incomingText: string): void {
 		if (!incomingText) return;
 		this.clearAutoCommitTimer();
+
+		if (
+			!this.interimAnchor &&
+			this.shouldReplaceLastCommitted(incomingText)
+		) {
+			this.reopenLastCommittedAsInterim();
+		}
 
 		const text = this.stripCommittedPrefix(incomingText);
 		if (!text) return;
@@ -218,6 +347,15 @@ export class StreamingEditor {
 			return;
 		}
 
+		if (
+			!this.interimAnchor &&
+			this.shouldReplaceLastCommitted(incomingText) &&
+			this.tryReplaceLastCommittedSpan(editor, incomingText.trimStart())
+		) {
+			this.clearInterimHighlight();
+			return;
+		}
+
 		if (this.interimAnchor) {
 			// A final that only re-confirms the locked prefix while a fresh
 			// interim is active (mid-pause split finals) must not overwrite
@@ -242,6 +380,7 @@ export class StreamingEditor {
 			};
 			editor.setCursor(newPos);
 			this.committedSegments.push(text);
+			this.rememberCommittedRange(from, text);
 			this.interimAnchor = null;
 			this.currentInterimText = "";
 			this.lastLockedText = "";
@@ -275,6 +414,7 @@ export class StreamingEditor {
 						ch: from.ch + text.length,
 					});
 					this.committedSegments.push(text);
+					this.rememberCommittedRange(from, text);
 					this.clearInterimHighlight();
 					return;
 				}
@@ -296,6 +436,10 @@ export class StreamingEditor {
 		};
 		editor.setCursor(newPos);
 		this.committedSegments.push(text);
+		this.rememberCommittedRange(
+			{ line: cursor.line, ch: cursor.ch + separator.length },
+			text
+		);
 		this.clearInterimHighlight();
 	}
 
@@ -316,6 +460,7 @@ export class StreamingEditor {
 				chTo: from.ch + this.currentInterimText.length,
 			};
 			this.committedSegments.push(this.currentInterimText);
+			this.rememberCommittedRange(from, this.currentInterimText);
 			this.currentInterimText = "";
 			this.interimAnchor = null;
 		}

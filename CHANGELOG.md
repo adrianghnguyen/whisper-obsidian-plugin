@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gemini Live long-utterance double paste** — after pause-delay lock, a later cleaned full final of the same turn (wording tweaks, extra comma, continuation) replaces the locked span instead of appending a second copy. Does not require a reconnect. Exact prefix strip from 1.15.1-beta.1 still handles concatenated failover streams.
+
 ## [1.15.1-beta.1](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.0...1.15.1-beta.1) (2026-11-02)
 
 ### Fixed
