@@ -31,6 +31,15 @@ export class StreamingEditor {
 		chFrom: number;
 		chTo: number;
 	} | null = null;
+	/*
+	 * Dictation start (command) through the latest pause-lock. A later
+	 * full-turn rewrite is compared against this whole span, not only
+	 * lastLockedText from the most recent chunk.
+	 */
+	private dictationOrigin: { line: number; ch: number } | null = null;
+	private firstLockFrom: { line: number; ch: number } | null = null;
+	private lastLockTo: { line: number; ch: number } | null = null;
+	private sessionLockedText = "";
 	private committedSegments: string[] = [];
 
 	constructor(
@@ -241,34 +250,41 @@ export class StreamingEditor {
 		return current;
 	}
 
-	private canExtendLockedRange(from: {
-		line: number;
-		ch: number;
-	}): boolean {
-		const range = this.lastLockedRange;
-		if (!range || range.line !== from.line) return false;
-		return from.ch >= range.chTo && from.ch <= range.chTo + 2;
-	}
-
-	private extendLockedUtterance(
+	private recordLock(
 		from: { line: number; ch: number },
-		text: string,
-		gapText: string
+		text: string
 	): void {
-		const range = this.lastLockedRange;
-		if (!range) {
-			this.lastLockedText = text;
-			this.rememberCommittedRange(from, text);
-			return;
+		const chTo = from.ch + text.length;
+		const editor = this.getEditor();
+		const line = editor?.getLine(from.line) ?? "";
+		if (
+			!this.firstLockFrom ||
+			this.firstLockFrom.line !== from.line
+		) {
+			let start = { line: from.line, ch: from.ch };
+			const origin = this.dictationOrigin;
+			if (
+				origin &&
+				origin.line === from.line &&
+				origin.ch <= from.ch
+			) {
+				const between = line.slice(origin.ch, from.ch);
+				if (/^\s*$/.test(between)) {
+					start = { line: origin.line, ch: origin.ch };
+				}
+			}
+			this.firstLockFrom = start;
 		}
-		this.lastLockedText = `${this.lastLockedText}${gapText}${text}`;
-		this.lastLockedTextLength = this.lastLockedText.length;
+		this.lastLockTo = { line: from.line, ch: chTo };
+		this.sessionLockedText = line.slice(this.firstLockFrom.ch, chTo);
+		this.lastLockedText = this.sessionLockedText;
+		this.lastLockedTextLength = this.sessionLockedText.length;
 		this.lastLockedRange = {
-			line: range.line,
-			chFrom: range.chFrom,
-			chTo: from.ch + text.length,
+			line: from.line,
+			chFrom: this.firstLockFrom.ch,
+			chTo,
 		};
-		this.replaceLastCommittedSegment(this.lastLockedText);
+		this.committedSegments.push(text);
 	}
 
 	private rememberCommittedRange(
@@ -294,7 +310,10 @@ export class StreamingEditor {
 	}
 
 	private revisionSource(): string {
-		const locked = this.lastLockedText || this.lastNonEmptyCommitted();
+		const locked =
+			this.sessionLockedText ||
+			this.lastLockedText ||
+			this.lastNonEmptyCommitted();
 		if (locked && this.currentInterimText) {
 			return `${locked} ${this.currentInterimText}`.trim();
 		}
@@ -314,16 +333,17 @@ export class StreamingEditor {
 
 	private reopenLastCommittedAsInterim(): void {
 		if (this.interimAnchor || !this.lastLockedRange) return;
-		const last = this.lastLockedText || this.lastNonEmptyCommitted();
+		const last =
+			this.sessionLockedText ||
+			this.lastLockedText ||
+			this.lastNonEmptyCommitted();
 		if (!last) return;
-		const idx = this.committedSegments.lastIndexOf(last);
-		if (idx >= 0) {
-			this.committedSegments.splice(idx, 1);
-		}
-		this.interimAnchor = {
+		this.committedSegments = [];
+		const from = this.firstLockFrom ?? {
 			line: this.lastLockedRange.line,
 			ch: this.lastLockedRange.chFrom,
 		};
+		this.interimAnchor = { line: from.line, ch: from.ch };
 		this.currentInterimText = last;
 		this.lastLockedText = "";
 	}
@@ -334,14 +354,26 @@ export class StreamingEditor {
 	): boolean {
 		const range = this.lastLockedRange;
 		if (!range) return false;
-		const from = { line: range.line, ch: range.chFrom };
-		const to = { line: range.line, ch: range.chTo };
+		const from = {
+			line: range.line,
+			ch: this.firstLockFrom?.ch ?? range.chFrom,
+		};
+		const to = {
+			line: range.line,
+			ch: this.lastLockTo?.ch ?? range.chTo,
+		};
 		editor.replaceRange(text, from, to);
 		editor.setCursor({
 			line: from.line,
 			ch: from.ch + text.length,
 		});
-		this.replaceLastCommittedSegment(text);
+		this.committedSegments = [text];
+		this.sessionLockedText = text;
+		this.firstLockFrom = { ...from };
+		this.lastLockTo = {
+			line: from.line,
+			ch: from.ch + text.length,
+		};
 		this.rememberCommittedRange(from, text);
 		this.lastLockedText = "";
 		this.interimAnchor = null;
@@ -466,7 +498,9 @@ export class StreamingEditor {
 		}
 
 		const revisionBase =
-			this.lastLockedText || this.lastNonEmptyCommitted();
+			this.sessionLockedText ||
+			this.lastLockedText ||
+			this.lastNonEmptyCommitted();
 		if (
 			!this.interimAnchor &&
 			revisionBase &&
@@ -509,7 +543,9 @@ export class StreamingEditor {
 			) {
 				const from = {
 					line: this.lastLockedRange.line,
-					ch: this.lastLockedRange.chFrom,
+					ch:
+						this.firstLockFrom?.ch ??
+						this.lastLockedRange.chFrom,
 				};
 				const to = {
 					line: this.interimAnchor.line,
@@ -523,7 +559,13 @@ export class StreamingEditor {
 					line: from.line,
 					ch: from.ch + replacement.length,
 				});
-				this.replaceLastCommittedSegment(replacement);
+				this.committedSegments = [replacement];
+				this.sessionLockedText = replacement;
+				this.firstLockFrom = { ...from };
+				this.lastLockTo = {
+					line: from.line,
+					ch: from.ch + replacement.length,
+				};
 				this.rememberCommittedRange(from, replacement);
 				this.lastLockedText = "";
 				this.interimAnchor = null;
@@ -628,27 +670,24 @@ export class StreamingEditor {
 	lockInterim(): void {
 		this.clearAutoCommitTimer();
 		if (this.interimAnchor && this.currentInterimText) {
-			const from = this.interimAnchor;
-			const text = this.currentInterimText;
-			if (this.canExtendLockedRange(from)) {
-				const editor = this.getEditor();
-				const gapText =
-					editor && this.lastLockedRange
-						? (editor.getLine(from.line) ?? "").slice(
-								this.lastLockedRange.chTo,
-								from.ch
-							)
-						: " ";
-				this.extendLockedUtterance(from, text, gapText);
-			} else {
-				this.lastLockedText = text;
-				this.committedSegments.push(text);
-				this.rememberCommittedRange(from, text);
-			}
+			this.recordLock(this.interimAnchor, this.currentInterimText);
 			this.currentInterimText = "";
 			this.interimAnchor = null;
 		}
 		this.clearInterimHighlight();
+	}
+
+	/**
+	 * Dictation start command: origin for the first-lock → last-lock span.
+	 * A later rewritten final is compared against that whole utterance.
+	 */
+	beginDictation(): void {
+		this.reset();
+		const editor = this.getEditor();
+		const cursor = editor?.getCursor();
+		this.dictationOrigin = cursor
+			? { line: cursor.line, ch: cursor.ch }
+			: null;
 	}
 
 	/**
@@ -660,21 +699,18 @@ export class StreamingEditor {
 	 */
 	recoverInterim(): void {
 		this.clearAutoCommitTimer();
-		if (this.lastLockedText && !this.interimAnchor) {
+		const locked =
+			this.sessionLockedText || this.lastLockedText;
+		if (locked && !this.interimAnchor) {
 			this.interimAnchor = this.lastRecoveryAnchor;
-			this.currentInterimText = this.lastLockedText;
-			// The locked text lives in the live interim span again; drop it
-			// from committed history so stripCommittedPrefix does not strip
-			// it out of the next cumulative transcript update.
-			const idx = this.committedSegments.lastIndexOf(
-				this.lastLockedText
-			);
-			if (idx >= 0) {
-				this.committedSegments.splice(idx, 1);
-			}
+			this.currentInterimText = locked;
+			this.committedSegments = [];
 			this.lastLockedText = "";
 			this.lastLockedTextLength = 0;
 			this.lastLockedRange = null;
+			this.firstLockFrom = null;
+			this.lastLockTo = null;
+			this.sessionLockedText = "";
 		}
 		this.clearInterimHighlight();
 	}
@@ -701,6 +737,10 @@ export class StreamingEditor {
 		this.lastLockedText = "";
 		this.lastLockedTextLength = 0;
 		this.lastLockedRange = null;
+		this.dictationOrigin = null;
+		this.firstLockFrom = null;
+		this.lastLockTo = null;
+		this.sessionLockedText = "";
 		this.committedSegments = [];
 		this.clearInterimHighlight();
 	}

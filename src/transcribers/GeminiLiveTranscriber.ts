@@ -43,6 +43,7 @@ export interface LiveTranscriptSink {
 	commitFinal(text: string): void;
 	lockInterim(): void;
 	reset(): void;
+	beginDictation(): void;
 }
 
 /**
@@ -144,6 +145,7 @@ export class GeminiLiveTranscriber {
 			});
 
 			this.streamActive = true;
+			this.editor.beginDictation();
 			if (this.plugin.settings.debugMode) {
 				new Notice("Live streaming started");
 			}

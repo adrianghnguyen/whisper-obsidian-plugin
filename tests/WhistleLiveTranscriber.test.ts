@@ -59,6 +59,12 @@ class FakeEditor implements LiveTranscriptSink {
 	reset(): void {
 		this.resets += 1;
 	}
+
+	beginDictation(): void {
+		this.dictations += 1;
+	}
+
+	dictations = 0;
 }
 
 function pcmChunk(samples: number, fill = 0.1): string {
@@ -163,6 +169,7 @@ describe("WhistleLiveTranscriber session", () => {
 		expect(recorder.started).toBe(true);
 		expect(live.isActive).toBe(true);
 		expect(recorder.deviceId).toBe("mic-whistle");
+		expect(editor.dictations).toBe(1);
 	});
 
 	it("does not call streamProcess until one second of PCM is buffered", async () => {

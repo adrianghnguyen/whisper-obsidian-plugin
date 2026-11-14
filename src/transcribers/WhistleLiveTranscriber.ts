@@ -126,6 +126,7 @@ export class WhistleLiveTranscriber {
 				this.onAudioChunk(chunk);
 			});
 			this.streamActive = true;
+			this.editor.beginDictation();
 			if (this.plugin.settings.debugMode) {
 				new Notice("Whistle Live streaming started");
 			}

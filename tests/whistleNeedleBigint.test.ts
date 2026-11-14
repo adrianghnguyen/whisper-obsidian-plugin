@@ -80,6 +80,7 @@ class FakeEditor implements LiveTranscriptSink {
 	commitFinal(): void {}
 	lockInterim(): void {}
 	reset(): void {}
+	beginDictation(): void {}
 }
 
 function makePlugin(): Whisper {

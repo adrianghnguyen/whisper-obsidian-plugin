@@ -402,6 +402,47 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
 	});
 
+	it("replaces the first-lock through last-lock span of a long sentence, not only the last chunk", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.beginDictation();
+		const chunk1 =
+			"In terms of how things are going up at work, I think I'm positioning myself as a key linchpin";
+		const chunk2 =
+			"and the fact that Claire is putting me into the right conversation spaces so I can grow";
+		const chunk3 =
+			"and help shape the future of our data architecture and look at our systems and I'm getting paired with some of those subject matter experts";
+		streaming.updateInterim(chunk1);
+		vi.advanceTimersByTime(2000);
+		streaming.updateInterim(chunk2);
+		vi.advanceTimersByTime(2000);
+		streaming.updateInterim(chunk3);
+		vi.advanceTimersByTime(2000);
+		expect(fake.content()).toBe(`${chunk1} ${chunk2} ${chunk3}`);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+		expect(fake.content()).not.toContain("going up at work");
+	});
+
+	it("still replaces from the first lock after lastLockedText was cleared by a confirming final", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.beginDictation();
+		const chunk1 =
+			"In terms of how things are going up at work, I think I'm positioning myself as a key linchpin and the fact that Claire is putting me into the right conversation spaces";
+		const chunk2 =
+			"so I can grow and help shape the future of our data architecture and look at our systems and I'm getting paired with some of those subject matter experts";
+		streaming.updateInterim(chunk1);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(chunk1);
+		streaming.updateInterim(chunk2);
+		vi.advanceTimersByTime(2000);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
 	it("does not smash a later locked sentence when a late final only confirms the first chunk", () => {
 		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
 		streaming.updateInterim("First sentence.");

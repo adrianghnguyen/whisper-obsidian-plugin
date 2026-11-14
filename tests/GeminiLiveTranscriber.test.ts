@@ -76,6 +76,10 @@ class FakeEditor implements LiveTranscriptSink {
 
 	lockInterim(): void {}
 	reset(): void {}
+	beginDictation(): void {
+		this.dictations += 1;
+	}
+	dictations = 0;
 }
 
 function makePlugin(): Whisper {
@@ -129,6 +133,7 @@ describe("GeminiLiveTranscriber session", () => {
 		expect(recorder.started).toBe(true);
 		expect(transcriber.isActive).toBe(true);
 		expect(recorder.deviceId).toBe("mic-abc");
+		expect(editor.dictations).toBe(1);
 	});
 
 	it("sends standard setup configuration on start", async () => {
