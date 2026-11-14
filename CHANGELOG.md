@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Gemini Live long-utterance double paste** — after pause-delay lock, a later cleaned full final of the same turn (wording tweaks, extra comma, continuation) replaces the locked span instead of appending a second copy. Does not require a reconnect. Exact prefix strip from 1.15.1-beta.1 still handles concatenated failover streams.
+- **Live long-sentence double lock** — a long Gemini Live utterance that pause-locks in chunks (breath or thinking pause mid-sentence) then receives a cleaned full final of the same turn now replaces the span from dictation start / first lock through the latest lock once, not only the last locked chunk. Previously the first locked words stayed and the rewrite was pasted after them. Whistle Live / Needle two-pass streams no longer re-lock the boundary word (`brown` then `brown fox`). Language and keyword settings are unchanged. Exact prefix strip from 1.15.1-beta.1 still handles concatenated failover streams.
 
 ## [1.15.1-beta.1](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.0...1.15.1-beta.1) (2026-11-02)
 

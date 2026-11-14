@@ -6,6 +6,7 @@ import {
 	LiveTranscriptSink,
 } from "../src/transcribers/GeminiLiveTranscriber";
 import { floatToPcm16Base64 } from "../src/transcribers/liveProtocol";
+import { StreamingEditor } from "../src/transcribers/StreamingEditor";
 import {
 	WHISTLE_LIVE_MODULE,
 	WhistleLiveTranscriber,
@@ -58,6 +59,12 @@ class FakeEditor implements LiveTranscriptSink {
 	reset(): void {
 		this.resets += 1;
 	}
+
+	beginDictation(): void {
+		this.dictations += 1;
+	}
+
+	dictations = 0;
 }
 
 function pcmChunk(samples: number, fill = 0.1): string {
@@ -162,6 +169,7 @@ describe("WhistleLiveTranscriber session", () => {
 		expect(recorder.started).toBe(true);
 		expect(live.isActive).toBe(true);
 		expect(recorder.deviceId).toBe("mic-whistle");
+		expect(editor.dictations).toBe(1);
 	});
 
 	it("does not call streamProcess until one second of PCM is buffered", async () => {
@@ -226,6 +234,82 @@ describe("WhistleLiveTranscriber session", () => {
 		expect(editor.resets).toBeGreaterThanOrEqual(1);
 		expect(transcriber.isActive).toBe(false);
 		expect(recorder.started).toBe(false);
+	});
+
+	it("writes a Needle boundary word once when consecutive windows re-lock it", async () => {
+		class DocEditor {
+			lines = [{ text: "" }];
+			cursor = { line: 0, ch: 0 };
+			getCursor() {
+				return { ...this.cursor };
+			}
+			setCursor(pos: { line: number; ch: number }) {
+				this.cursor = { ...pos };
+			}
+			getLine(n: number): string {
+				return this.lines[n]?.text ?? "";
+			}
+			replaceRange(
+				text: string,
+				from: { line: number; ch: number },
+				to?: { line: number; ch: number }
+			) {
+				const end = to ?? from;
+				const line = this.lines[from.line];
+				if (!line) return;
+				line.text =
+					line.text.slice(0, from.ch) +
+					text +
+					line.text.slice(end.ch);
+				this.cursor = {
+					line: from.line,
+					ch: from.ch + text.length,
+				};
+			}
+			content(): string {
+				return this.lines.map((l) => l.text).join("\n");
+			}
+		}
+		const doc = new DocEditor();
+		const streaming = new StreamingEditor(
+			{
+				workspace: {
+					getActiveViewOfType: () => ({ editor: doc }),
+				},
+			} as never,
+			() => ({ enabled: false, color: "" }),
+			() => 60_000
+		);
+		streamProcess
+			.mockReturnValueOnce(
+				streamResult({ text: "the quick brown", pending: "" })
+			)
+			.mockReturnValueOnce(
+				streamResult({ text: "brown fox jumps", pending: "" })
+			);
+		const live = new WhistleLiveTranscriber(makePlugin(), {
+			recorder,
+			editor: streaming,
+			loadEngine: async () => ({
+				transcribe: () => ({
+					text: "",
+					language: "",
+					ttft_ms: 0,
+					decode_tps: 0,
+				}),
+				streamProcess,
+				streamStop,
+			}),
+		});
+
+		await live.startStream();
+		recorder.emit(pcmChunk(WHISTLE_STREAM_CHUNK_SAMPLES));
+		await vi.waitFor(() => expect(streamProcess).toHaveBeenCalledTimes(1));
+		recorder.emit(pcmChunk(WHISTLE_STREAM_CHUNK_SAMPLES));
+		await vi.waitFor(() => expect(streamProcess).toHaveBeenCalledTimes(2));
+
+		expect(doc.content()).toBe("the quick brown fox jumps");
+		expect(doc.content().split("brown").length - 1).toBe(1);
 	});
 
 	it("surfaces an engine load failure and stays idle", async () => {
