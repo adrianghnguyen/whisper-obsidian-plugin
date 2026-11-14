@@ -97,6 +97,7 @@ export class StreamingEditor {
 				if (next === current) break;
 				current = next;
 			}
+			current = StreamingEditor.stripOverlappingHead(last, current);
 		}
 		return current;
 	}
@@ -117,12 +118,23 @@ export class StreamingEditor {
 	 * one utterance.
 	 */
 	private static utteranceTokens(text: string): string[] {
-		return text
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, " ")
-			.trim()
-			.split(/\s+/)
-			.filter(Boolean);
+		return StreamingEditor.tokenSpans(text).map((span) => span.norm);
+	}
+
+	private static tokenSpans(
+		text: string
+	): { norm: string; start: number; end: number }[] {
+		const spans: { norm: string; start: number; end: number }[] = [];
+		const re = /[a-z0-9]+/gi;
+		let match: RegExpExecArray | null;
+		while ((match = re.exec(text)) !== null) {
+			spans.push({
+				norm: match[0].toLowerCase(),
+				start: match.index,
+				end: match.index + match[0].length,
+			});
+		}
+		return spans;
 	}
 
 	private static tokenLcsLength(a: string[], b: string[]): number {
@@ -161,6 +173,104 @@ export class StreamingEditor {
 		return StreamingEditor.tokenLcsLength(a, b) / a.length >= 0.82;
 	}
 
+	/*
+	 * A late final that only restates an earlier prefix of the locked
+	 * utterance (chunk 1 after chunk 2 already locked) must not replace
+	 * the whole span.
+	 */
+	private static isPrefixConfirm(
+		previous: string,
+		incoming: string
+	): boolean {
+		const a = StreamingEditor.utteranceTokens(previous);
+		const b = StreamingEditor.utteranceTokens(incoming);
+		if (b.length === 0 || b.length >= a.length) return false;
+		for (let i = 0; i < b.length; i++) {
+			if (a[i] !== b[i]) return false;
+		}
+		return true;
+	}
+
+	/*
+	 * Needle commits a word once two consecutive passes agree. The next
+	 * 1 s window can re-emit that boundary word as the start of `text`,
+	 * so "brown" + "brown fox" would otherwise lock twice.
+	 */
+	private static stripOverlappingHead(
+		previous: string,
+		incoming: string
+	): string {
+		const prevToks = StreamingEditor.utteranceTokens(previous);
+		const incSpans = StreamingEditor.tokenSpans(incoming);
+		if (!prevToks.length || !incSpans.length) return incoming;
+		let currentSpans = incSpans;
+		let current = incoming;
+		const maxLoops = prevToks.length;
+		for (let n = 0; n < maxLoops; n++) {
+			const max = Math.min(prevToks.length, currentSpans.length);
+			let k = 0;
+			for (let len = max; len >= 1; len--) {
+				let ok = true;
+				for (let i = 0; i < len; i++) {
+					if (
+						prevToks[prevToks.length - len + i] !==
+						currentSpans[i].norm
+					) {
+						ok = false;
+						break;
+					}
+				}
+				if (ok) {
+					k = len;
+					break;
+				}
+			}
+			if (k === 0) break;
+			if (k === currentSpans.length) {
+				/*
+				 * Incoming is only the overlapping suffix (same words,
+				 * maybe new casing/punctuation). Leave it for confirm
+				 * or refine instead of stripping to empty.
+				 */
+				break;
+			}
+			current = current.slice(currentSpans[k - 1].end).trimStart();
+			currentSpans = StreamingEditor.tokenSpans(current);
+			if (!current) break;
+		}
+		return current;
+	}
+
+	private canExtendLockedRange(from: {
+		line: number;
+		ch: number;
+	}): boolean {
+		const range = this.lastLockedRange;
+		if (!range || range.line !== from.line) return false;
+		return from.ch >= range.chTo && from.ch <= range.chTo + 2;
+	}
+
+	private extendLockedUtterance(
+		from: { line: number; ch: number },
+		text: string,
+		gapText: string
+	): void {
+		const range = this.lastLockedRange;
+		if (!range) {
+			this.lastLockedText = text;
+			this.rememberCommittedRange(from, text);
+			return;
+		}
+		this.lastLockedText = `${this.lastLockedText}${gapText}${text}`;
+		this.lastLockedTextLength = this.lastLockedText.length;
+		this.lastLockedRange = {
+			line: range.line,
+			chFrom: range.chFrom,
+			chTo: from.ch + text.length,
+		};
+		this.replaceLastCommittedSegment(this.lastLockedText);
+	}
+
 	private rememberCommittedRange(
 		from: { line: number; ch: number },
 		text: string
@@ -183,8 +293,16 @@ export class StreamingEditor {
 		}
 	}
 
+	private revisionSource(): string {
+		const locked = this.lastLockedText || this.lastNonEmptyCommitted();
+		if (locked && this.currentInterimText) {
+			return `${locked} ${this.currentInterimText}`.trim();
+		}
+		return locked;
+	}
+
 	private shouldReplaceLastCommitted(incoming: string): boolean {
-		const last = this.lastLockedText || this.lastNonEmptyCommitted();
+		const last = this.revisionSource();
 		if (!last) return false;
 		const stripped = this.stripCommittedPrefix(incoming);
 		if (!stripped) return false;
@@ -347,6 +465,17 @@ export class StreamingEditor {
 			return;
 		}
 
+		const revisionBase =
+			this.lastLockedText || this.lastNonEmptyCommitted();
+		if (
+			!this.interimAnchor &&
+			revisionBase &&
+			StreamingEditor.isPrefixConfirm(revisionBase, text)
+		) {
+			this.clearInterimHighlight();
+			return;
+		}
+
 		if (
 			!this.interimAnchor &&
 			this.shouldReplaceLastCommitted(incomingText) &&
@@ -365,6 +494,41 @@ export class StreamingEditor {
 				text === this.lastLockedText &&
 				this.currentInterimText
 			) {
+				return;
+			}
+
+			/*
+			 * Full-turn rewrite while a later chunk is still interim: replace
+			 * from the start of the locked utterance through the interim, not
+			 * only the live span (that would leave the first lock in place).
+			 */
+			if (
+				this.lastLockedRange &&
+				this.lastLockedRange.line === this.interimAnchor.line &&
+				this.shouldReplaceLastCommitted(incomingText)
+			) {
+				const from = {
+					line: this.lastLockedRange.line,
+					ch: this.lastLockedRange.chFrom,
+				};
+				const to = {
+					line: this.interimAnchor.line,
+					ch:
+						this.interimAnchor.ch +
+						this.currentInterimText.length,
+				};
+				const replacement = incomingText.trimStart();
+				editor.replaceRange(replacement, from, to);
+				editor.setCursor({
+					line: from.line,
+					ch: from.ch + replacement.length,
+				});
+				this.replaceLastCommittedSegment(replacement);
+				this.rememberCommittedRange(from, replacement);
+				this.lastLockedText = "";
+				this.interimAnchor = null;
+				this.currentInterimText = "";
+				this.clearInterimHighlight();
 				return;
 			}
 			const from = this.interimAnchor;
@@ -391,17 +555,28 @@ export class StreamingEditor {
 		// If interim text was already locked by auto-commit (no active interim anchor):
 		if (this.lastLockedText) {
 			const locked = this.lastLockedText;
-			this.lastLockedText = "";
 
 			if (text === locked) {
+				this.lastLockedText = "";
 				this.clearInterimHighlight();
 				return;
 			}
 
+			if (StreamingEditor.isPrefixConfirm(locked, text)) {
+				this.clearInterimHighlight();
+				return;
+			}
+
+			const lockedTokens = StreamingEditor.utteranceTokens(locked);
+			const incomingTokens = StreamingEditor.utteranceTokens(text);
+			const canRefineSpan =
+				lockedTokens.length === 0 ||
+				incomingTokens.length >= lockedTokens.length * 0.7;
+
 			// Check if we can refine the locked span right before cursor
 			const cursor = editor.getCursor();
 			const line = editor.getLine(cursor.line) ?? "";
-			if (cursor.ch >= locked.length) {
+			if (canRefineSpan && cursor.ch >= locked.length) {
 				const before = line.slice(cursor.ch - locked.length, cursor.ch);
 				if (before === locked) {
 					const from = {
@@ -413,12 +588,14 @@ export class StreamingEditor {
 						line: from.line,
 						ch: from.ch + text.length,
 					});
-					this.committedSegments.push(text);
+					this.replaceLastCommittedSegment(text);
 					this.rememberCommittedRange(from, text);
+					this.lastLockedText = "";
 					this.clearInterimHighlight();
 					return;
 				}
 			}
+			this.lastLockedText = "";
 		}
 
 		// No interim anchor and no matching locked text — append at cursor with separator
@@ -452,15 +629,22 @@ export class StreamingEditor {
 		this.clearAutoCommitTimer();
 		if (this.interimAnchor && this.currentInterimText) {
 			const from = this.interimAnchor;
-			this.lastLockedText = this.currentInterimText;
-			this.lastLockedTextLength = this.currentInterimText.length;
-			this.lastLockedRange = {
-				line: from.line,
-				chFrom: from.ch,
-				chTo: from.ch + this.currentInterimText.length,
-			};
-			this.committedSegments.push(this.currentInterimText);
-			this.rememberCommittedRange(from, this.currentInterimText);
+			const text = this.currentInterimText;
+			if (this.canExtendLockedRange(from)) {
+				const editor = this.getEditor();
+				const gapText =
+					editor && this.lastLockedRange
+						? (editor.getLine(from.line) ?? "").slice(
+								this.lastLockedRange.chTo,
+								from.ch
+							)
+						: " ";
+				this.extendLockedUtterance(from, text, gapText);
+			} else {
+				this.lastLockedText = text;
+				this.committedSegments.push(text);
+				this.rememberCommittedRange(from, text);
+			}
 			this.currentInterimText = "";
 			this.interimAnchor = null;
 		}

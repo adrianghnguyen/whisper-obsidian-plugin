@@ -368,4 +368,170 @@ describe("StreamingEditor auto-commit voice buffer & multi-pass", () => {
 		expect(fake.content()).toContain(other);
 		expect(fake.content()).not.toBe(other);
 	});
+
+	it("replaces when the first chunk is pause-locked and the rewrite arrives while the rest is still interim", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const chunk1 =
+			"In terms of how things are going up at work, I think I'm positioning myself as a key linchpin and the fact that Claire is putting me into the right conversation spaces";
+		const chunk2 =
+			"so I can grow and help shape the future of our data architecture and look at our systems and I'm getting paired with some of those subject matter experts";
+		streaming.updateInterim(chunk1);
+		vi.advanceTimersByTime(2000);
+		streaming.updateInterim(chunk2);
+		expect(fake.content()).toBe(`${chunk1} ${chunk2}`);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
+	it("replaces after two pause-locks in one long sentence then a rewritten full final", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const chunk1 =
+			"In terms of how things are going up at work, I think I'm positioning myself as a key linchpin and the fact that Claire is putting me into the right conversation spaces";
+		const chunk2 =
+			"so I can grow and help shape the future of our data architecture and look at our systems and I'm getting paired with some of those subject matter experts";
+		streaming.updateInterim(chunk1);
+		vi.advanceTimersByTime(2000);
+		streaming.updateInterim(chunk2);
+		vi.advanceTimersByTime(2000);
+		expect(fake.content()).toBe(`${chunk1} ${chunk2}`);
+
+		streaming.commitFinal(FINAL_UTTERANCE);
+		expect(fake.content()).toBe(FINAL_UTTERANCE);
+		expect(fake.content().split("In terms of how things").length - 1).toBe(1);
+	});
+
+	it("does not smash a later locked sentence when a late final only confirms the first chunk", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim("First sentence.");
+		vi.advanceTimersByTime(500);
+		streaming.updateInterim("Second sentence.");
+		vi.advanceTimersByTime(500);
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+
+		streaming.commitFinal("First sentence.");
+		expect(fake.content()).toBe("First sentence. Second sentence.");
+	});
+
+	it("strips a Needle two-pass word that locks again at the chunk boundary", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 60_000);
+		streaming.commitFinal("the quick brown");
+		streaming.commitFinal("brown fox jumps");
+		expect(fake.content()).toBe("the quick brown fox jumps");
+		expect(fake.content().split("brown").length - 1).toBe(1);
+	});
+
+	it("strips a duplicated locked word when the next delta starts with that word twice", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 60_000);
+		streaming.commitFinal("turn off the");
+		streaming.commitFinal("the the kitchen lights");
+		expect(fake.content()).toBe("turn off the kitchen lights");
+		expect(fake.content().split("the").length - 1).toBe(1);
+	});
+
+	it("appends an 11-token lock plus a lightly rewritten 11-token final after confirm", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"one two three four five six seven eight nine ten eleven";
+		const rewritten =
+			"one two three four five six seven eight nine ten twelve";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(rewritten);
+		expect(fake.content()).toBe(`${locked} ${rewritten}`);
+	});
+
+	it("replaces a 12-token lock when the later final is a light rewrite after confirm", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"one two three four five six seven eight nine ten eleven twelve";
+		const rewritten =
+			"one two three four five six seven eight nine ten eleven dozen";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(rewritten);
+		expect(fake.content()).toBe(rewritten);
+	});
+
+	it("appends when token LCS is just under 82 percent of the locked span", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima";
+		const incoming =
+			"alpha bravo charlie delta echo foxtrot golf hotel india whiskey xray yankee";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(incoming);
+		expect(fake.content()).toBe(`${locked} ${incoming}`);
+	});
+
+	it("replaces when token LCS is just over 82 percent of the locked span", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima";
+		const incoming =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet whiskey xray";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(incoming);
+		expect(fake.content()).toBe(incoming);
+	});
+
+	it("does not append a shortened prefix confirm that is under 70 percent of the locked tokens", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar";
+		const shortened =
+			"alpha bravo charlie delta echo foxtrot golf hotel india";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(shortened);
+		expect(fake.content()).toBe(locked);
+		expect(fake.content().split("alpha bravo").length - 1).toBe(1);
+	});
+
+	it("still replaces when exactly one of the first six tokens differs", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima";
+		const headEdited =
+			"alpha bravo charlie delta echo whiskey golf hotel india juliet kilo lima";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(headEdited);
+		expect(fake.content()).toBe(headEdited);
+	});
+
+	it("appends when two of the first six tokens differ even if the rest matches", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		const locked =
+			"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima";
+		const incoming =
+			"alpha bravo yankee zulu echo foxtrot golf hotel india juliet kilo lima";
+		streaming.updateInterim(locked);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(locked);
+		streaming.commitFinal(incoming);
+		expect(fake.content()).toBe(`${locked} ${incoming}`);
+	});
+
+	it("appends a new long turn that shares the opening but then diverges", () => {
+		const { fake, streaming } = makeEditor(HIGHLIGHT_OFF, () => 500);
+		streaming.updateInterim(LOCKED_UTTERANCE);
+		vi.advanceTimersByTime(2000);
+		streaming.commitFinal(LOCKED_UTTERANCE);
+		const sameOpening =
+			"In terms of how things are going at the grocery store I need milk eggs bread apples bananas pasta rice chicken butter and also to pick up the dry cleaning before Thursday because the shop closes early and I promised I would not forget this time around.";
+		streaming.commitFinal(sameOpening);
+		expect(fake.content().startsWith(LOCKED_UTTERANCE)).toBe(true);
+		expect(fake.content()).toContain(sameOpening);
+		expect(fake.content()).not.toBe(sameOpening);
+	});
 });
