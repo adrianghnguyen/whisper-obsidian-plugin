@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Recording controls (mobile)** — record/pause row sits higher in the bottom sheet; microphone and provider selectors share one row; the active record control uses a red recording state while capturing.
+
 ## [1.15.1-beta.2](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.1-beta.1...1.15.1-beta.2) (2026-11-14)
 
 ### Fixed

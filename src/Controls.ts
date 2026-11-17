@@ -1,5 +1,5 @@
 import Whisper from "main";
-import { ButtonComponent, Modal } from "obsidian";
+import { ButtonComponent, Modal, Platform } from "obsidian";
 import { RecordingStatus } from "./StatusBar";
 import { getModuleById } from "./transcribers/registry";
 
@@ -18,6 +18,9 @@ export class Controls extends Modal {
 		super(plugin.app);
 		this.plugin = plugin;
 		this.containerEl.addClass("recording-controls");
+		if (Platform.isMobile) {
+			this.containerEl.addClass("recording-controls--mobile");
+		}
 
 		this.timerDisplay = this.contentEl.createEl("div", { cls: "timer" });
 		this.updateTimerDisplay();
@@ -51,7 +54,7 @@ export class Controls extends Modal {
 		this.updateMetaDisplay();
 
 		const buttonGroupEl = this.contentEl.createEl("div", {
-			cls: "button-group",
+			cls: "recording-buttons button-group",
 		});
 
 		this.startButton = new ButtonComponent(buttonGroupEl);
@@ -147,6 +150,7 @@ export class Controls extends Modal {
 		const status = this.plugin.statusBar.status;
 		const isIdle = status === RecordingStatus.Idle;
 		const isPaused = status === RecordingStatus.Paused;
+		const isRecording = status === RecordingStatus.Recording;
 
 		this.startButton.buttonEl.style.display = isIdle ? "" : "none";
 		this.startButton.buttonEl.empty();
@@ -154,6 +158,10 @@ export class Controls extends Modal {
 		this.startButton.buttonEl.appendText(" Record");
 
 		this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
+		this.pauseButton.buttonEl.toggleClass(
+			"button-component--recording",
+			isRecording
+		);
 		this.pauseButton.buttonEl.empty();
 		this.pauseButton.setIcon(isPaused ? "play" : "pause");
 		this.pauseButton.buttonEl.appendText(isPaused ? " Resume" : " Pause");

@@ -98,6 +98,55 @@
 	height: 14px;
 }
 
+.recording-controls .button-component.button-component--recording {
+	background-color: #e86a6a;
+	color: var(--text-on-accent);
+	animation: whisper-recording-pulse 1.6s ease-in-out infinite;
+}
+
+.recording-controls
+	.button-component.button-component--recording:hover {
+	background-color: #dc5c5c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.recording-controls .button-component.button-component--recording {
+		animation: none;
+		background-color: #e86a6a;
+	}
+}
+
+/* Mobile: primary controls higher in the sheet; mic + provider on one row. */
+.recording-controls--mobile .button-group,
+body.is-mobile .recording-controls .button-group {
+	order: 1;
+}
+
+.recording-controls--mobile .recording-meta,
+body.is-mobile .recording-controls .recording-meta {
+	order: 2;
+	flex-direction: row;
+	gap: 8px;
+}
+
+.recording-controls--mobile .meta-component,
+body.is-mobile .recording-controls .meta-component {
+	flex: 1;
+	min-width: 0;
+	width: auto;
+}
+
+.recording-controls--mobile .timer,
+body.is-mobile .recording-controls .timer {
+	order: 3;
+}
+
+/* Desktop: centered sheet instead of full-bleed bottom bar. */
+body:not(.is-mobile) .recording-controls .modal {
+	max-width: 420px;
+	margin: 0 auto;
+}
+
 .whisper-status-bar {
 	cursor: pointer;
 }

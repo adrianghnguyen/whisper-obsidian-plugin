@@ -221,6 +221,7 @@ export class TFolder {
 
 export const Platform = {
 	isDesktopApp: true,
+	isMobile: false,
 };
 
 export function setIcon(_el: HTMLElement, _icon: string) {}
