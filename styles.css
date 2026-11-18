@@ -71,6 +71,13 @@
 	gap: 6px;
 }
 
+.recording-controls .recording-control-row {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 6px;
+}
+
 .recording-controls .button-component {
 	display: inline-flex;
 	align-items: center;
@@ -118,17 +125,26 @@
 	}
 }
 
-.recording-controls--mobile .button-component--primary-slot,
-body.is-mobile .recording-controls .button-component--primary-slot {
-	flex: 1 1 auto;
-	justify-content: center;
-	min-width: 7.5rem;
-}
-
-/* Mobile: primary controls higher in the sheet; mic + provider on one row. */
+/* Mobile: three equal columns — Pause | Record/Stop | Cancel. */
 .recording-controls--mobile .button-group,
 body.is-mobile .recording-controls .button-group {
 	order: 1;
+	width: 100%;
+}
+
+.recording-controls--mobile .recording-control-row,
+body.is-mobile .recording-controls .recording-control-row {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 6px;
+	width: 100%;
+}
+
+.recording-controls--mobile .recording-control-row .button-component,
+body.is-mobile .recording-controls .recording-control-row .button-component {
+	width: 100%;
+	justify-content: center;
+	min-width: 0;
 }
 
 .recording-controls--mobile .recording-meta,

@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **Recording controls (mobile)** — record/pause row sits higher in the bottom sheet; microphone and provider selectors share one row; the primary slot morphs **Record → Stop** (glowing red while capturing) with **Pause** beside it, not in that slot.
+- **Recording controls (mobile)** — three-column control row (**Pause | Record→Stop | Cancel**); center slot morphs with red glow while capturing and stays centered; microphone and provider selectors share one row below.
 
 ## [1.15.1-beta.2](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.1-beta.1...1.15.1-beta.2) (2026-11-14)
 

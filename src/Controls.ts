@@ -57,7 +57,19 @@ export class Controls extends Modal {
 			cls: "recording-buttons button-group",
 		});
 
-		this.startButton = new ButtonComponent(buttonGroupEl);
+		const controlRowEl = buttonGroupEl.createDiv({
+			cls: "recording-control-row",
+		});
+
+		this.pauseButton = new ButtonComponent(controlRowEl);
+		this.pauseButton
+			.setIcon("pause")
+			.setButtonText(" Pause")
+			.onClick(() => this.plugin.pauseRecording())
+			.buttonEl.addClass("button-component");
+		this.pauseButton.buttonEl.addClass("button-component--slot-left");
+
+		this.startButton = new ButtonComponent(controlRowEl);
 		this.startButton
 			.setIcon("circle")
 			.setButtonText(" Record")
@@ -67,12 +79,16 @@ export class Controls extends Modal {
 			.buttonEl.addClass("button-component");
 		this.startButton.buttonEl.addClass("button-component--primary-slot");
 
-		this.pauseButton = new ButtonComponent(buttonGroupEl);
-		this.pauseButton
-			.setIcon("pause")
-			.setButtonText(" Pause")
-			.onClick(() => this.plugin.pauseRecording())
+		this.cancelButton = new ButtonComponent(controlRowEl);
+		this.cancelButton
+			.setIcon("x")
+			.setButtonText(" Cancel")
+			.onClick(async () => {
+				await this.plugin.cancelRecording();
+				this.close();
+			})
 			.buttonEl.addClass("button-component");
+		this.cancelButton.buttonEl.addClass("button-component--slot-right");
 
 		this.stopButton = new ButtonComponent(buttonGroupEl);
 		this.stopButton
@@ -80,16 +96,6 @@ export class Controls extends Modal {
 			.setButtonText(" Stop")
 			.onClick(async () => {
 				await this.plugin.stopRecording();
-				this.close();
-			})
-			.buttonEl.addClass("button-component");
-
-		this.cancelButton = new ButtonComponent(buttonGroupEl);
-		this.cancelButton
-			.setIcon("x")
-			.setButtonText(" Cancel")
-			.onClick(async () => {
-				await this.plugin.cancelRecording();
 				this.close();
 			})
 			.buttonEl.addClass("button-component");
@@ -195,7 +201,29 @@ export class Controls extends Modal {
 			this.startButton.buttonEl.style.display = isIdle ? "" : "none";
 		}
 
-		this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
+		if (mobilePrimaryStop) {
+			this.pauseButton.buttonEl.style.display = "";
+			this.pauseButton.buttonEl.style.visibility = isIdle
+				? "hidden"
+				: "visible";
+			this.pauseButton.buttonEl.style.pointerEvents = isIdle
+				? "none"
+				: "";
+			this.cancelButton.buttonEl.style.display = "";
+			this.cancelButton.buttonEl.style.visibility = isIdle
+				? "hidden"
+				: "visible";
+			this.cancelButton.buttonEl.style.pointerEvents = isIdle
+				? "none"
+				: "";
+		} else {
+			this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.pauseButton.buttonEl.style.visibility = "";
+			this.pauseButton.buttonEl.style.pointerEvents = "";
+			this.cancelButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.cancelButton.buttonEl.style.visibility = "";
+			this.cancelButton.buttonEl.style.pointerEvents = "";
+		}
 		this.pauseButton.buttonEl.removeClass("button-component--recording");
 		this.pauseButton.buttonEl.empty();
 		this.pauseButton.setIcon(isPaused ? "play" : "pause");
@@ -210,7 +238,6 @@ export class Controls extends Modal {
 			this.stopButton.buttonEl.appendText(" Stop");
 		}
 
-		this.cancelButton.buttonEl.style.display = isIdle ? "none" : "";
 		this.cancelButton.buttonEl.empty();
 		this.cancelButton.setIcon("x");
 		this.cancelButton.buttonEl.appendText(" Cancel");
