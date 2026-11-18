@@ -1,5 +1,5 @@
 import Whisper from "main";
-import { ButtonComponent, Modal } from "obsidian";
+import { ButtonComponent, Modal, Platform } from "obsidian";
 import { RecordingStatus } from "./StatusBar";
 import { getModuleById } from "./transcribers/registry";
 
@@ -18,6 +18,9 @@ export class Controls extends Modal {
 		super(plugin.app);
 		this.plugin = plugin;
 		this.containerEl.addClass("recording-controls");
+		if (Platform.isMobile) {
+			this.containerEl.addClass("recording-controls--mobile");
+		}
 
 		this.timerDisplay = this.contentEl.createEl("div", { cls: "timer" });
 		this.updateTimerDisplay();
@@ -51,22 +54,41 @@ export class Controls extends Modal {
 		this.updateMetaDisplay();
 
 		const buttonGroupEl = this.contentEl.createEl("div", {
-			cls: "button-group",
+			cls: "recording-buttons button-group",
 		});
 
-		this.startButton = new ButtonComponent(buttonGroupEl);
-		this.startButton
-			.setIcon("circle")
-			.setButtonText(" Record")
-			.onClick(() => this.plugin.startRecording())
-			.buttonEl.addClass("button-component");
+		const controlRowEl = buttonGroupEl.createDiv({
+			cls: "recording-control-row",
+		});
 
-		this.pauseButton = new ButtonComponent(buttonGroupEl);
+		this.pauseButton = new ButtonComponent(controlRowEl);
 		this.pauseButton
 			.setIcon("pause")
 			.setButtonText(" Pause")
 			.onClick(() => this.plugin.pauseRecording())
 			.buttonEl.addClass("button-component");
+		this.pauseButton.buttonEl.addClass("button-component--slot-left");
+
+		this.startButton = new ButtonComponent(controlRowEl);
+		this.startButton
+			.setIcon("circle")
+			.setButtonText(" Record")
+			.onClick(() => {
+				void this.handlePrimarySlotClick();
+			})
+			.buttonEl.addClass("button-component");
+		this.startButton.buttonEl.addClass("button-component--primary-slot");
+
+		this.cancelButton = new ButtonComponent(controlRowEl);
+		this.cancelButton
+			.setIcon("x")
+			.setButtonText(" Cancel")
+			.onClick(async () => {
+				await this.plugin.cancelRecording();
+				this.close();
+			})
+			.buttonEl.addClass("button-component");
+		this.cancelButton.buttonEl.addClass("button-component--slot-right");
 
 		this.stopButton = new ButtonComponent(buttonGroupEl);
 		this.stopButton
@@ -78,16 +100,6 @@ export class Controls extends Modal {
 			})
 			.buttonEl.addClass("button-component");
 
-		this.cancelButton = new ButtonComponent(buttonGroupEl);
-		this.cancelButton
-			.setIcon("x")
-			.setButtonText(" Cancel")
-			.onClick(async () => {
-				await this.plugin.cancelRecording();
-				this.close();
-			})
-			.buttonEl.addClass("button-component");
-
 		this.statusListener = () => {
 			this.resetGUI();
 			this.updateTimerDisplay();
@@ -95,6 +107,9 @@ export class Controls extends Modal {
 	}
 
 	onOpen() {
+		if (document.body.hasClass("is-mobile")) {
+			this.containerEl.addClass("recording-controls--mobile");
+		}
 		this.resetGUI();
 		this.updateTimerDisplay();
 		this.updateMetaDisplay();
@@ -143,27 +158,86 @@ export class Controls extends Modal {
 		);
 	}
 
+	private usesMobilePrimaryStop(): boolean {
+		return (
+			Platform.isMobile ||
+			this.containerEl.hasClass("recording-controls--mobile")
+		);
+	}
+
+	private async handlePrimarySlotClick(): Promise<void> {
+		const status = this.plugin.statusBar.status;
+		if (status === RecordingStatus.Idle) {
+			this.plugin.startRecording();
+			return;
+		}
+		if (this.usesMobilePrimaryStop()) {
+			await this.plugin.stopRecording();
+			this.close();
+		}
+	}
+
 	resetGUI() {
 		const status = this.plugin.statusBar.status;
 		const isIdle = status === RecordingStatus.Idle;
 		const isPaused = status === RecordingStatus.Paused;
+		const isRecording = status === RecordingStatus.Recording;
+		const mobilePrimaryStop = this.usesMobilePrimaryStop();
 
-		this.startButton.buttonEl.style.display = isIdle ? "" : "none";
+		this.startButton.buttonEl.style.display = "";
 		this.startButton.buttonEl.empty();
-		this.startButton.setIcon("circle");
-		this.startButton.buttonEl.appendText(" Record");
+		this.startButton.buttonEl.toggleClass(
+			"button-component--recording",
+			mobilePrimaryStop && isRecording
+		);
+		if (isIdle || !mobilePrimaryStop) {
+			this.startButton.setIcon("circle");
+			this.startButton.buttonEl.appendText(" Record");
+		} else {
+			this.startButton.setIcon("square");
+			this.startButton.buttonEl.appendText(" Stop");
+		}
+		if (!mobilePrimaryStop) {
+			this.startButton.buttonEl.style.display = isIdle ? "" : "none";
+		}
 
-		this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
+		if (mobilePrimaryStop) {
+			this.pauseButton.buttonEl.style.display = "";
+			this.pauseButton.buttonEl.style.visibility = isIdle
+				? "hidden"
+				: "visible";
+			this.pauseButton.buttonEl.style.pointerEvents = isIdle
+				? "none"
+				: "";
+			this.cancelButton.buttonEl.style.display = "";
+			this.cancelButton.buttonEl.style.visibility = isIdle
+				? "hidden"
+				: "visible";
+			this.cancelButton.buttonEl.style.pointerEvents = isIdle
+				? "none"
+				: "";
+		} else {
+			this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.pauseButton.buttonEl.style.visibility = "";
+			this.pauseButton.buttonEl.style.pointerEvents = "";
+			this.cancelButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.cancelButton.buttonEl.style.visibility = "";
+			this.cancelButton.buttonEl.style.pointerEvents = "";
+		}
+		this.pauseButton.buttonEl.removeClass("button-component--recording");
 		this.pauseButton.buttonEl.empty();
 		this.pauseButton.setIcon(isPaused ? "play" : "pause");
 		this.pauseButton.buttonEl.appendText(isPaused ? " Resume" : " Pause");
 
-		this.stopButton.buttonEl.style.display = isIdle ? "none" : "";
-		this.stopButton.buttonEl.empty();
-		this.stopButton.setIcon("square");
-		this.stopButton.buttonEl.appendText(" Stop");
+		if (mobilePrimaryStop) {
+			this.stopButton.buttonEl.style.display = "none";
+		} else {
+			this.stopButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.stopButton.buttonEl.empty();
+			this.stopButton.setIcon("square");
+			this.stopButton.buttonEl.appendText(" Stop");
+		}
 
-		this.cancelButton.buttonEl.style.display = isIdle ? "none" : "";
 		this.cancelButton.buttonEl.empty();
 		this.cancelButton.setIcon("x");
 		this.cancelButton.buttonEl.appendText(" Cancel");
