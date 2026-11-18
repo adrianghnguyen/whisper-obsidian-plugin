@@ -61,8 +61,11 @@ export class Controls extends Modal {
 		this.startButton
 			.setIcon("circle")
 			.setButtonText(" Record")
-			.onClick(() => this.plugin.startRecording())
+			.onClick(() => {
+				void this.handlePrimarySlotClick();
+			})
 			.buttonEl.addClass("button-component");
+		this.startButton.buttonEl.addClass("button-component--primary-slot");
 
 		this.pauseButton = new ButtonComponent(buttonGroupEl);
 		this.pauseButton
@@ -98,6 +101,9 @@ export class Controls extends Modal {
 	}
 
 	onOpen() {
+		if (document.body.hasClass("is-mobile")) {
+			this.containerEl.addClass("recording-controls--mobile");
+		}
 		this.resetGUI();
 		this.updateTimerDisplay();
 		this.updateMetaDisplay();
@@ -146,30 +152,63 @@ export class Controls extends Modal {
 		);
 	}
 
+	private usesMobilePrimaryStop(): boolean {
+		return (
+			Platform.isMobile ||
+			this.containerEl.hasClass("recording-controls--mobile")
+		);
+	}
+
+	private async handlePrimarySlotClick(): Promise<void> {
+		const status = this.plugin.statusBar.status;
+		if (status === RecordingStatus.Idle) {
+			this.plugin.startRecording();
+			return;
+		}
+		if (this.usesMobilePrimaryStop()) {
+			await this.plugin.stopRecording();
+			this.close();
+		}
+	}
+
 	resetGUI() {
 		const status = this.plugin.statusBar.status;
 		const isIdle = status === RecordingStatus.Idle;
 		const isPaused = status === RecordingStatus.Paused;
 		const isRecording = status === RecordingStatus.Recording;
+		const mobilePrimaryStop = this.usesMobilePrimaryStop();
 
-		this.startButton.buttonEl.style.display = isIdle ? "" : "none";
+		this.startButton.buttonEl.style.display = "";
 		this.startButton.buttonEl.empty();
-		this.startButton.setIcon("circle");
-		this.startButton.buttonEl.appendText(" Record");
+		this.startButton.buttonEl.toggleClass(
+			"button-component--recording",
+			mobilePrimaryStop && isRecording
+		);
+		if (isIdle || !mobilePrimaryStop) {
+			this.startButton.setIcon("circle");
+			this.startButton.buttonEl.appendText(" Record");
+		} else {
+			this.startButton.setIcon("square");
+			this.startButton.buttonEl.appendText(" Stop");
+		}
+		if (!mobilePrimaryStop) {
+			this.startButton.buttonEl.style.display = isIdle ? "" : "none";
+		}
 
 		this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
-		this.pauseButton.buttonEl.toggleClass(
-			"button-component--recording",
-			isRecording
-		);
+		this.pauseButton.buttonEl.removeClass("button-component--recording");
 		this.pauseButton.buttonEl.empty();
 		this.pauseButton.setIcon(isPaused ? "play" : "pause");
 		this.pauseButton.buttonEl.appendText(isPaused ? " Resume" : " Pause");
 
-		this.stopButton.buttonEl.style.display = isIdle ? "none" : "";
-		this.stopButton.buttonEl.empty();
-		this.stopButton.setIcon("square");
-		this.stopButton.buttonEl.appendText(" Stop");
+		if (mobilePrimaryStop) {
+			this.stopButton.buttonEl.style.display = "none";
+		} else {
+			this.stopButton.buttonEl.style.display = isIdle ? "none" : "";
+			this.stopButton.buttonEl.empty();
+			this.stopButton.setIcon("square");
+			this.stopButton.buttonEl.appendText(" Stop");
+		}
 
 		this.cancelButton.buttonEl.style.display = isIdle ? "none" : "";
 		this.cancelButton.buttonEl.empty();

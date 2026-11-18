@@ -102,6 +102,7 @@
 	background-color: #e86a6a;
 	color: var(--text-on-accent);
 	animation: whisper-recording-pulse 1.6s ease-in-out infinite;
+	box-shadow: 0 0 12px 3px rgba(232, 106, 106, 0.55);
 }
 
 .recording-controls
@@ -113,7 +114,15 @@
 	.recording-controls .button-component.button-component--recording {
 		animation: none;
 		background-color: #e86a6a;
+		box-shadow: 0 0 8px 2px rgba(232, 106, 106, 0.45);
 	}
+}
+
+.recording-controls--mobile .button-component--primary-slot,
+body.is-mobile .recording-controls .button-component--primary-slot {
+	flex: 1 1 auto;
+	justify-content: center;
+	min-width: 7.5rem;
 }
 
 /* Mobile: primary controls higher in the sheet; mic + provider on one row. */
