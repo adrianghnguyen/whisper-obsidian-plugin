@@ -1,5 +1,11 @@
 import Whisper from "main";
-import { App, Notice, PluginSettingTab, SecretComponent, Setting } from "obsidian";
+import {
+	App,
+	Notice,
+	PluginSettingTab,
+	SecretComponent,
+	Setting,
+} from "obsidian";
 import {
 	SettingsManager,
 	TranscriptionProvider,
@@ -9,6 +15,9 @@ import {
 	ApiKeysSettings,
 	GeminiTranscriptionMode,
 	getHostname,
+	STATUS_BAR_CLICK_CYCLES,
+	STATUS_BAR_CLICK_CYCLE_LABELS,
+	normalizeStatusBarClickCycle,
 } from "./SettingsManager";
 import {
 	applyAudioDeviceSelection,
@@ -237,8 +246,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			.setName(name)
 			.setDesc(desc)
 			.addTextArea((text) => {
-				text
-					.setPlaceholder(placeholder)
+				text.setPlaceholder(placeholder)
 					.setValue(value)
 					.onChange((next) => {
 						apply(next);
@@ -316,7 +324,8 @@ export class WhisperSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.whisperApiKeySecretId)
 					.onChange(async (value) => {
 						if (this.rebuilding) return;
-						this.plugin.settings.whisperApiKeySecretId = value ?? "";
+						this.plugin.settings.whisperApiKeySecretId =
+							value ?? "";
 						await this.settingsManager.saveSettings(
 							this.plugin.settings
 						);
@@ -393,7 +402,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			new Setting(this.containerEl)
 				.setName(module.label)
 				.setDesc(
-					"When off, this provider is hidden from the dropdown and status-bar cycle."
+					"When off, this provider is hidden from the Active provider dropdown, the hover menu, and the provider cycle (command, recording controls, and status-bar click in that mode)."
 				)
 				.addToggle((toggle) => {
 					toggle
@@ -426,8 +435,8 @@ export class WhisperSettingsTab extends PluginSettingTab {
 								this.plugin.settings.disabledTranscriptionProviders =
 									disabled;
 								if (
-									this.plugin.settings.transcriptionProvider ===
-									module.id
+									this.plugin.settings
+										.transcriptionProvider === module.id
 								) {
 									this.plugin.settings.transcriptionProvider =
 										getFirstEnabledProvider(
@@ -443,6 +452,32 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						});
 				});
 		}
+
+		new Setting(this.containerEl)
+			.setName("Status bar click")
+			.setDesc(
+				"Choose what a click on the Whisper status bar cycles. Pause delay steps Gemini Live's lock window (Fast, Standard, Relaxed, Long) and does nothing on other providers. Transcription provider walks the sources you left enabled above (for example Gemini API and Gemini Live). On desktop, hover still opens the provider and microphone menus. This does not change mid-recording."
+			)
+			.addDropdown((dropdown) => {
+				for (const value of STATUS_BAR_CLICK_CYCLES) {
+					dropdown.addOption(
+						value,
+						STATUS_BAR_CLICK_CYCLE_LABELS[value]
+					);
+				}
+				dropdown
+					.setValue(
+						normalizeStatusBarClickCycle(
+							this.plugin.settings.statusBarClickCycle
+						)
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.statusBarClickCycle =
+							normalizeStatusBarClickCycle(value);
+						await this.save();
+						this.plugin.statusBar.updateStatusBarItem();
+					});
+			});
 	}
 
 	private createGeminiLiveModelSetting(): void {
@@ -466,10 +501,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			)
 			.addDropdown((dropdown) => {
 				for (const option of PAUSE_TOLERANCE_OPTIONS) {
-					dropdown.addOption(
-						String(option.ms),
-						option.fullLabel
-					);
+					dropdown.addOption(String(option.ms), option.fullLabel);
 				}
 				dropdown
 					.setValue(
@@ -552,10 +584,14 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		new Setting(this.containerEl)
 			.setName("Highlight color preset")
-			.setDesc("Quick-pick a semi-transparent color for light and dark themes.")
+			.setDesc(
+				"Quick-pick a semi-transparent color for light and dark themes."
+			)
 			.addDropdown((dropdown) => {
 				dropdown.addOption("custom", "Custom");
-				for (const [label, hex] of Object.entries(LIVE_HIGHLIGHT_PRESETS)) {
+				for (const [label, hex] of Object.entries(
+					LIVE_HIGHLIGHT_PRESETS
+				)) {
 					dropdown.addOption(hex, label);
 				}
 				dropdown
@@ -570,10 +606,11 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		new Setting(this.containerEl)
 			.setName("Highlight color")
-			.setDesc("Hex color (#RRGGBB or #RRGGBBAA). Invalid values fall back to light grey.")
+			.setDesc(
+				"Hex color (#RRGGBB or #RRGGBBAA). Invalid values fall back to light grey."
+			)
 			.addText((text) => {
-				text
-					.setPlaceholder(DEFAULT_LIVE_HIGHLIGHT_COLOR)
+				text.setPlaceholder(DEFAULT_LIVE_HIGHLIGHT_COLOR)
 					.setValue(currentColor)
 					.onChange(async (value) => {
 						if (this.rebuilding) return;
@@ -794,8 +831,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				"Comma- or newline-separated terms to bias recognition (names, jargon)."
 			)
 			.addTextArea((text) => {
-				text
-					.setPlaceholder("Obsidian, vault note")
+				text.setPlaceholder("Obsidian, vault note")
 					.setValue(this.plugin.settings.whistleKeywords)
 					.onChange((value) => {
 						this.plugin.settings.whistleKeywords = value;
@@ -1078,7 +1114,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			.setDesc("Endpoint for post-processing requests")
 			.addText((text) =>
 				text
-					.setPlaceholder("https://api.example.com/v1/chat/completions")
+					.setPlaceholder(
+						"https://api.example.com/v1/chat/completions"
+					)
 					.setValue(this.plugin.settings.postProcessingUrl)
 					.onChange(async (value) => {
 						this.plugin.settings.postProcessingUrl = value;

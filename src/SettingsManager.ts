@@ -11,10 +11,7 @@ import {
 
 export { LEGACY_WHISPER_SECRET_ID };
 
-const SECRET_IDS: Record<
-	Exclude<keyof ApiKeysSettings, "apiKey">,
-	string
-> = {
+const SECRET_IDS: Record<Exclude<keyof ApiKeysSettings, "apiKey">, string> = {
 	openAiApiKey: "openai-api-key",
 	anthropicApiKey: "anthropic-api-key",
 	postProcessingApiKey: "post-processing-api-key",
@@ -30,6 +27,41 @@ export type TranscriptionProvider =
 	| "whistle"
 	| "whistle-live";
 export type PostProcessingProvider = "anthropic" | "openai" | "custom";
+
+export const STATUS_BAR_CLICK_CYCLES = [
+	"pause-delay",
+	"transcription-provider",
+] as const;
+export type StatusBarClickCycle = (typeof STATUS_BAR_CLICK_CYCLES)[number];
+
+export const DEFAULT_STATUS_BAR_CLICK_CYCLE: StatusBarClickCycle =
+	"pause-delay";
+
+export const STATUS_BAR_CLICK_CYCLE_LABELS: Record<
+	StatusBarClickCycle,
+	string
+> = {
+	"pause-delay": "Pause delay",
+	"transcription-provider": "Transcription provider",
+};
+
+export function normalizeStatusBarClickCycle(
+	value: unknown
+): StatusBarClickCycle {
+	if (value === "pause-delay" || value === "transcription-provider") {
+		return value;
+	}
+	return DEFAULT_STATUS_BAR_CLICK_CYCLE;
+}
+
+export function statusBarClickHint(cycle: unknown): string {
+	const mode = normalizeStatusBarClickCycle(cycle);
+	const click =
+		mode === "transcription-provider"
+			? "Click to cycle transcription provider"
+			: "Click to cycle pause delay";
+	return `${click} · Hover for sources`;
+}
 
 export const PROVIDER_URLS: Record<PostProcessingProvider, string> = {
 	anthropic: "https://api.anthropic.com/v1/messages",
@@ -57,6 +89,7 @@ export interface WhisperSettings {
 	// Provider
 	transcriptionProvider: TranscriptionProvider;
 	disabledTranscriptionProviders: TranscriptionProvider[];
+	statusBarClickCycle: StatusBarClickCycle;
 	// API
 	whisperApiKeySecretId: string;
 	apiUrl: string;
@@ -123,6 +156,7 @@ export const DEFAULT_API_KEYS: ApiKeysSettings = {
 export const DEFAULT_WHISPER: WhisperSettings = {
 	transcriptionProvider: "openai",
 	disabledTranscriptionProviders: [],
+	statusBarClickCycle: DEFAULT_STATUS_BAR_CLICK_CYCLE,
 	whisperApiKeySecretId: "",
 	apiUrl: "https://api.openai.com/v1/audio/transcriptions",
 	model: "whisper-1",
@@ -471,9 +505,15 @@ export class SettingsManager {
 			persist = true;
 		}
 
-		if (
-			!isProviderEnabled(settings, settings.transcriptionProvider)
-		) {
+		const clickCycle = normalizeStatusBarClickCycle(
+			settings.statusBarClickCycle
+		);
+		if (settings.statusBarClickCycle !== clickCycle) {
+			settings.statusBarClickCycle = clickCycle;
+			persist = true;
+		}
+
+		if (!isProviderEnabled(settings, settings.transcriptionProvider)) {
 			settings.transcriptionProvider = getFirstEnabledProvider(settings);
 			persist = true;
 		}
@@ -483,7 +523,10 @@ export class SettingsManager {
 			persist = true;
 		}
 
-		if (this.secrets && migrateLegacyWhisperSecretId(settings, this.secrets)) {
+		if (
+			this.secrets &&
+			migrateLegacyWhisperSecretId(settings, this.secrets)
+		) {
 			persist = true;
 		}
 

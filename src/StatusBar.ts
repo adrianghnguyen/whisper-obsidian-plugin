@@ -1,10 +1,11 @@
 import { Menu, Notice, setIcon } from "obsidian";
 import Whisper from "main";
-import {
-	applyAudioDeviceSelection,
-	listInputDevices,
-} from "./audioDevices";
+import { applyAudioDeviceSelection, listInputDevices } from "./audioDevices";
 import { showMenuAboveAnchor } from "./menuPosition";
+import {
+	normalizeStatusBarClickCycle,
+	statusBarClickHint,
+} from "./SettingsManager";
 import {
 	getEnabledModules,
 	getModuleById,
@@ -49,7 +50,7 @@ export class StatusBar {
 		this.statusBarItem = this.plugin.addStatusBarItem();
 		this.statusBarItem.addClass("whisper-status-bar");
 		this.statusBarItem.addEventListener("click", () => {
-			void this.cyclePauseTolerance();
+			void this.handleStatusBarClick();
 		});
 		this.statusBarItem.addEventListener("mouseenter", () => {
 			this.schedulePopoversOpen();
@@ -116,9 +117,10 @@ export class StatusBar {
 			}
 			return `${providerShort.slice(0, Math.max(0, maxLen - 3))}...`;
 		}
-		return `${head}${separator}${segments[
-			segments.length - 1
-		].slice(0, remaining)}...`;
+		return `${head}${separator}${segments[segments.length - 1].slice(
+			0,
+			remaining
+		)}...`;
 	}
 
 	private isRecordingOrPaused(): boolean {
@@ -231,14 +233,23 @@ export class StatusBar {
 			this.deviceLabel = match.label;
 		} else {
 			this.deviceLabel = "Default";
-			const hasRealIds = devices.some(
-				(d) => d.id && d.id !== "default"
-			);
+			const hasRealIds = devices.some((d) => d.id && d.id !== "default");
 			if (hasRealIds && currentId !== "default") {
 				await applyAudioDeviceSelection(this.plugin, "default");
 			}
 		}
 		this.updateStatusBarItem();
+	}
+
+	handleStatusBarClick(): void {
+		const mode = normalizeStatusBarClickCycle(
+			this.plugin.settings.statusBarClickCycle
+		);
+		if (mode === "transcription-provider") {
+			void this.cycleProvider();
+			return;
+		}
+		void this.cyclePauseTolerance();
 	}
 
 	async cycleProvider(): Promise<void> {
@@ -260,7 +271,9 @@ export class StatusBar {
 		if (this.isRecordingOrPaused()) {
 			return;
 		}
-		const module = getModuleById(this.plugin.settings.transcriptionProvider);
+		const module = getModuleById(
+			this.plugin.settings.transcriptionProvider
+		);
 		if (!module.supportsPauseTolerance) {
 			return;
 		}
@@ -322,10 +335,7 @@ export class StatusBar {
 							);
 							return;
 						}
-						await applyAudioDeviceSelection(
-							this.plugin,
-							device.id
-						);
+						await applyAudioDeviceSelection(this.plugin, device.id);
 						this.deviceLabel = device.label;
 						this.updateStatusBarItem();
 						new Notice(device.label);
@@ -385,7 +395,9 @@ export class StatusBar {
 		if (!this.statusBarItem) {
 			return;
 		}
-		const module = getModuleById(this.plugin.settings.transcriptionProvider);
+		const module = getModuleById(
+			this.plugin.settings.transcriptionProvider
+		);
 		const micFull = this.deviceLabel || "Default";
 		const supportsTolerance = module.supportsPauseTolerance;
 		const toleranceShort = supportsTolerance
@@ -423,9 +435,9 @@ export class StatusBar {
 					this.plugin.settings.geminiLivePauseDelay
 			  )} — ${micFull}`
 			: `${module.label} — ${micFull}`;
-		const hint = supportsTolerance
-			? "Click to cycle pause tolerance · Hover for sources"
-			: "Hover for sources";
+		const hint = statusBarClickHint(
+			this.plugin.settings.statusBarClickCycle
+		);
 		const tooltip = `${tooltipLines}\n${hint}`;
 		this.statusBarItem.empty();
 		this.statusBarItem.toggleClass(

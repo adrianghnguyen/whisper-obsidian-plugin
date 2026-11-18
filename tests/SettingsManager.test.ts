@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
 	DEFAULT_SETTINGS,
+	DEFAULT_STATUS_BAR_CLICK_CYCLE,
+	normalizeStatusBarClickCycle,
 	resolveDesktopHostname,
 	resolveHostAudioDeviceId,
+	statusBarClickHint,
 } from "../src/SettingsManager";
 
 describe("DEFAULT_SETTINGS", () => {
@@ -38,6 +41,11 @@ describe("DEFAULT_SETTINGS", () => {
 		expect(DEFAULT_SETTINGS.transcriptionProvider).toBe("openai");
 	});
 
+	it("defaults status-bar click to pause delay", () => {
+		expect(DEFAULT_SETTINGS.statusBarClickCycle).toBe("pause-delay");
+		expect(DEFAULT_STATUS_BAR_CLICK_CYCLE).toBe("pause-delay");
+	});
+
 	it("defaults Whistle to auto language, no keywords, and no timestamps", () => {
 		expect(DEFAULT_SETTINGS.whistleLanguage).toBe("");
 		expect(DEFAULT_SETTINGS.whistleKeywords).toBe("");
@@ -52,6 +60,36 @@ describe("DEFAULT_SETTINGS", () => {
 	it("defaults to system audio device", () => {
 		expect(DEFAULT_SETTINGS.audioDeviceId).toBe("default");
 		expect(DEFAULT_SETTINGS.audioDeviceIds).toEqual({});
+	});
+});
+
+describe("normalizeStatusBarClickCycle", () => {
+	it("keeps known values", () => {
+		expect(normalizeStatusBarClickCycle("pause-delay")).toBe("pause-delay");
+		expect(normalizeStatusBarClickCycle("transcription-provider")).toBe(
+			"transcription-provider"
+		);
+	});
+
+	it("falls back to pause delay for missing or unknown values", () => {
+		expect(normalizeStatusBarClickCycle(undefined)).toBe("pause-delay");
+		expect(normalizeStatusBarClickCycle(null)).toBe("pause-delay");
+		expect(normalizeStatusBarClickCycle("")).toBe("pause-delay");
+		expect(normalizeStatusBarClickCycle("providers")).toBe("pause-delay");
+	});
+});
+
+describe("statusBarClickHint", () => {
+	it("names the click action and keeps the hover hint", () => {
+		expect(statusBarClickHint("pause-delay")).toBe(
+			"Click to cycle pause delay · Hover for sources"
+		);
+		expect(statusBarClickHint("transcription-provider")).toBe(
+			"Click to cycle transcription provider · Hover for sources"
+		);
+		expect(statusBarClickHint("nope")).toBe(
+			"Click to cycle pause delay · Hover for sources"
+		);
 	});
 });
 
@@ -113,9 +151,9 @@ describe("resolveDesktopHostname", () => {
 				HOSTNAME: "linux-box",
 			})
 		).toBe("DESKTOP-WIN");
-		expect(resolveDesktopHostname(undefined, { HOSTNAME: "linux-box" })).toBe(
-			"linux-box"
-		);
+		expect(
+			resolveDesktopHostname(undefined, { HOSTNAME: "linux-box" })
+		).toBe("linux-box");
 	});
 
 	it("returns unknown when nothing is available", () => {
