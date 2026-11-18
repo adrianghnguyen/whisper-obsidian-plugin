@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.15.1-beta.3](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.1-beta.2...1.15.1-beta.3) (2026-11-18)
+
 ### Changed
 
 - **Recording controls (mobile)** — three-column control row (**Pause | Record→Stop | Cancel**); center slot morphs with red glow while capturing and stays centered; microphone and provider selectors share one row below.
