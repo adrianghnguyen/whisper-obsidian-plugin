@@ -8,10 +8,7 @@ import { NativeAudioRecorder } from "src/AudioRecorder";
 import { RecordingStatus, StatusBar } from "src/StatusBar";
 import { getExtensionFromMimeType } from "src/utils";
 import { liveHighlightExtension } from "src/transcribers/liveHighlight";
-import {
-	isLiveProvider,
-	isProviderEnabled,
-} from "src/transcribers/registry";
+import { isLiveProvider, isProviderEnabled } from "src/transcribers/registry";
 export default class Whisper extends Plugin {
 	settings: PluginSettings;
 	settingsManager: SettingsManager;
@@ -319,6 +316,15 @@ export default class Whisper extends Plugin {
 			icon: "repeat",
 			callback: () => {
 				void this.statusBar.cycleProvider();
+			},
+		});
+
+		this.addCommand({
+			id: "cycle-pause-delay",
+			name: "Cycle pause delay",
+			icon: "timer",
+			callback: () => {
+				void this.statusBar.cyclePauseTolerance();
 			},
 		});
 

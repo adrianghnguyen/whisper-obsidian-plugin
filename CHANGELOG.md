@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Status bar click mode** — Settings → Whisper → Provider → **Status bar click** chooses what a click on the Whisper status bar cycles: **Pause delay** (default; Gemini Live Fast / Standard / Relaxed / Long) or **Transcription provider** (enabled sources, for example Gemini API and Gemini Live). Desktop hover menus, **Cycle transcription provider**, and the recording-controls provider button are unchanged. Command palette **Cycle pause delay** keeps the delay shortcut when the click is rebound.
+
 ## [1.15.1-beta.3](https://github.com/adrianghnguyen/whisper-obsidian-plugin/compare/1.15.1-beta.2...1.15.1-beta.3) (2026-11-18)
 
 ### Changed

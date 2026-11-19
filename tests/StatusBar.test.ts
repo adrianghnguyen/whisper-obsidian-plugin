@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { RecordingStatus } from "../src/StatusBar";
+import { describe, it, expect, vi } from "vitest";
+import { RecordingStatus, StatusBar } from "../src/StatusBar";
+import { DEFAULT_SETTINGS } from "../src/SettingsManager";
 
 describe("RecordingStatus enum", () => {
 	it("has expected values", () => {
@@ -64,5 +65,50 @@ describe("RecordingStatus enum", () => {
 		expect(label).toContain("Gemini Live");
 		expect(label).toContain("Standard");
 		expect(label.endsWith("...")).toBe(true);
+	});
+});
+
+describe("StatusBar click routing", () => {
+	function barWithCycle(cycle: string): InstanceType<typeof StatusBar> & {
+		cycleProvider: ReturnType<typeof vi.fn>;
+		cyclePauseTolerance: ReturnType<typeof vi.fn>;
+	} {
+		const bar = Object.create(StatusBar.prototype) as InstanceType<
+			typeof StatusBar
+		> & {
+			cycleProvider: ReturnType<typeof vi.fn>;
+			cyclePauseTolerance: ReturnType<typeof vi.fn>;
+		};
+		bar.plugin = {
+			settings: {
+				...DEFAULT_SETTINGS,
+				statusBarClickCycle:
+					cycle as typeof DEFAULT_SETTINGS.statusBarClickCycle,
+			},
+		} as InstanceType<typeof StatusBar>["plugin"];
+		bar.cycleProvider = vi.fn();
+		bar.cyclePauseTolerance = vi.fn();
+		return bar;
+	}
+
+	it("cycles pause delay by default", () => {
+		const bar = barWithCycle("pause-delay");
+		bar.handleStatusBarClick();
+		expect(bar.cyclePauseTolerance).toHaveBeenCalledOnce();
+		expect(bar.cycleProvider).not.toHaveBeenCalled();
+	});
+
+	it("cycles transcription provider when that mode is selected", () => {
+		const bar = barWithCycle("transcription-provider");
+		bar.handleStatusBarClick();
+		expect(bar.cycleProvider).toHaveBeenCalledOnce();
+		expect(bar.cyclePauseTolerance).not.toHaveBeenCalled();
+	});
+
+	it("falls back to pause delay for unknown saved values", () => {
+		const bar = barWithCycle("mystery");
+		bar.handleStatusBarClick();
+		expect(bar.cyclePauseTolerance).toHaveBeenCalledOnce();
+		expect(bar.cycleProvider).not.toHaveBeenCalled();
 	});
 });
